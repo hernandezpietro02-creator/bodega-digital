@@ -41,16 +41,6 @@
   .bodega-titulo { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; }
   .bodega-subtitulo { font-size: 13px; opacity: 0.8; margin-top: 2px; }
 
-  /* BLOQUEADO */
-  #pantalla-bloqueada {
-    display: none; min-height: calc(100vh - 80px);
-    align-items: center; justify-content: center; flex-direction: column;
-    text-align: center; padding: 32px;
-  }
-  #pantalla-bloqueada .icono { font-size: 64px; margin-bottom: 16px; }
-  #pantalla-bloqueada h2 { font-family: 'Syne', sans-serif; font-size: 22px; color: var(--muted); margin-bottom: 8px; }
-  #pantalla-bloqueada p { color: var(--muted); font-size: 15px; }
-
   /* BÚSQUEDA */
   .busqueda-wrapper { padding: 14px 14px 8px; }
   .busqueda-input {
@@ -192,14 +182,6 @@
   <div style="font-size:36px;margin-bottom:12px;">🏪</div>
   Cargando bodega...
 </div>
-
-<!-- PANTALLA BLOQUEADA -->
-<div id="pantalla-bloqueada">
-  <div class="icono">🔒</div>
-  <h2>No disponible por el momento</h2>
-  <p>Esta bodega no está disponible en este momento.<br>Intenta más tarde.</p>
-</div>
-
 <!-- APP PRINCIPAL -->
 <div id="app-principal" style="display:none;">
   <div class="header">

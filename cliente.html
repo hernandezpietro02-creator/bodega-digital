@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Bodega Digital — Pedido</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+  :root {
+    --verde: #1a7a4a; --verde-claro: #e8f5ee; --verde-acento: #25c26e;
+    --rojo: #c0392b; --rojo-claro: #fdecea; --bg: #f5f6f0;
+    --card: #ffffff; --texto: #1c1c1c; --muted: #6b7280; --borde: #e0e4d8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--texto); min-height: 100vh; }
+
+  /* HEADER */
+  .header {
+    background: var(--verde);
+    color: white;
+    padding: 18px 18px 14px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .header-logo { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; opacity: 0.8; }
+  .carrito-btn {
+    background: rgba(255,255,255,0.15);
+    border: 1.5px solid rgba(255,255,255,0.3);
+    color: white; border-radius: 20px;
+    padding: 7px 14px; font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: 'DM Sans', sans-serif;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .carrito-count {
+    background: white; color: var(--verde);
+    border-radius: 10px; padding: 0px 6px;
+    font-size: 12px; font-weight: 700;
+  }
+  .bodega-titulo { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; }
+  .bodega-subtitulo { font-size: 13px; opacity: 0.8; margin-top: 2px; }
+
+  /* BLOQUEADO */
+  #pantalla-bloqueada {
+    display: none; min-height: calc(100vh - 80px);
+    align-items: center; justify-content: center; flex-direction: column;
+    text-align: center; padding: 32px;
+  }
+  #pantalla-bloqueada .icono { font-size: 64px; margin-bottom: 16px; }
+  #pantalla-bloqueada h2 { font-family: 'Syne', sans-serif; font-size: 22px; color: var(--muted); margin-bottom: 8px; }
+  #pantalla-bloqueada p { color: var(--muted); font-size: 15px; }
+
+  /* BÚSQUEDA */
+  .busqueda-wrapper { padding: 14px 14px 8px; }
+  .busqueda-input {
+    width: 100%; padding: 11px 16px 11px 40px;
+    border: 1.5px solid var(--borde); border-radius: 12px;
+    font-size: 15px; font-family: 'DM Sans', sans-serif;
+    background: white; color: var(--texto);
+  }
+  .busqueda-input:focus { outline: none; border-color: var(--verde); }
+  .busqueda-wrapper { position: relative; }
+  .busqueda-icono { position: absolute; left: 26px; top: 50%; transform: translateY(-50%); font-size: 16px; pointer-events: none; }
+
+  /* CATEGORÍAS */
+  .cats { display: flex; gap: 8px; padding: 6px 14px 14px; overflow-x: auto; scrollbar-width: none; }
+  .cats::-webkit-scrollbar { display: none; }
+  .cat-btn {
+    white-space: nowrap; padding: 7px 14px; border-radius: 20px;
+    border: 1.5px solid var(--borde); background: white;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; color: var(--muted);
+    transition: all .15s;
+  }
+  .cat-btn.active { background: var(--verde); color: white; border-color: var(--verde); }
+
+  /* PRODUCTOS */
+  .main { padding: 0 14px 100px; }
+  .seccion-titulo { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 12px; color: var(--muted); }
+  .productos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+
+  .prod-card {
+    background: white; border: 1.5px solid var(--borde);
+    border-radius: 14px; overflow: hidden;
+    cursor: pointer; transition: transform .1s, box-shadow .15s;
+    -webkit-user-select: none;
+  }
+  .prod-card:active { transform: scale(0.97); }
+  .prod-card.sin-stock { opacity: 0.5; cursor: not-allowed; }
+  .prod-foto { width: 100%; height: 120px; object-fit: cover; background: #f3f4f6; display: block; }
+  .prod-foto-placeholder { width: 100%; height: 120px; background: #f3f4f6; display: flex; align-items: center; justify-content: center; font-size: 32px; }
+  .prod-info { padding: 10px 12px 12px; }
+  .prod-nombre { font-size: 13px; font-weight: 600; margin-bottom: 4px; line-height: 1.3; }
+  .prod-precio { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; color: var(--verde); }
+  .prod-stock-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .prod-agregar {
+    margin-top: 8px; width: 100%; padding: 8px;
+    background: var(--verde-claro); color: var(--verde);
+    border: none; border-radius: 8px; font-size: 13px;
+    font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif;
+    transition: background .15s;
+  }
+  .prod-agregar:hover { background: var(--verde); color: white; }
+  .prod-card.en-carrito .prod-agregar { background: var(--verde); color: white; }
+
+  .cant-control { display: flex; align-items: center; gap: 6px; margin-top: 8px; justify-content: center; }
+  .cant-btn { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--verde); color: white; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+  .cant-num { font-weight: 700; font-size: 15px; min-width: 24px; text-align: center; }
+
+  /* CARRITO DRAWER */
+  .carrito-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 200; }
+  .carrito-overlay.show { display: block; }
+  .carrito-drawer {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: white; border-radius: 20px 20px 0 0;
+    padding: 0; max-height: 85vh; display: flex; flex-direction: column;
+    transform: translateY(100%); transition: transform .3s ease;
+    z-index: 201;
+  }
+  .carrito-drawer.show { transform: translateY(0); }
+  .carrito-handle { width: 40px; height: 4px; background: var(--borde); border-radius: 2px; margin: 14px auto 0; }
+  .carrito-header { padding: 12px 20px 16px; border-bottom: 1.5px solid var(--borde); }
+  .carrito-header h2 { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
+  .carrito-items { flex: 1; overflow-y: auto; padding: 14px 20px; }
+  .carrito-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--borde); }
+  .carrito-item:last-child { border-bottom: none; }
+  .carrito-item-foto { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; background: #f3f4f6; flex-shrink: 0; }
+  .carrito-item-info { flex: 1; }
+  .carrito-item-nombre { font-size: 14px; font-weight: 600; }
+  .carrito-item-precio { font-size: 13px; color: var(--muted); }
+  .carrito-item-total { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; color: var(--verde); }
+
+  .carrito-footer { padding: 16px 20px; border-top: 1.5px solid var(--borde); }
+  .carrito-total-row { display: flex; justify-content: space-between; margin-bottom: 14px; align-items: center; }
+  .carrito-total-label { font-size: 14px; color: var(--muted); }
+  .carrito-total-valor { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: var(--verde); }
+
+  /* FORMULARIO PEDIDO */
+  .form-pedido { display: none; }
+  .form-pedido.show { display: block; }
+  .campo { margin-bottom: 12px; }
+  .campo label { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 5px; }
+  .campo input, .campo textarea {
+    width: 100%; padding: 11px 14px; border: 1.5px solid var(--borde);
+    border-radius: 10px; font-size: 15px; font-family: 'DM Sans', sans-serif;
+    background: #fafafa; color: var(--texto);
+  }
+  .campo input:focus, .campo textarea:focus { outline: none; border-color: var(--verde); background: white; }
+  .campo textarea { resize: none; height: 70px; }
+
+  .btn-pedido {
+    width: 100%; padding: 15px; background: var(--verde);
+    color: white; border: none; border-radius: 12px;
+    font-size: 16px; font-weight: 700; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; transition: background .2s;
+  }
+  .btn-pedido:hover { background: #155c38; }
+  .btn-pedido:disabled { background: var(--muted); cursor: not-allowed; }
+  .btn-volver { background: none; border: 1.5px solid var(--borde); width: 100%; padding: 12px; border-radius: 10px; font-size: 14px; margin-bottom: 10px; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+
+  /* ÉXITO */
+  #pantalla-exito {
+    display: none; text-align: center; padding: 40px 24px;
+    min-height: 100vh; align-items: center; justify-content: center;
+    flex-direction: column;
+  }
+  #pantalla-exito .check { font-size: 72px; margin-bottom: 16px; }
+  #pantalla-exito h2 { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; color: var(--verde); margin-bottom: 8px; }
+  #pantalla-exito p { color: var(--muted); font-size: 15px; margin-bottom: 6px; }
+
+  /* SEGUIMIENTO PEDIDO */
+  .seguimiento { background: white; border: 1.5px solid var(--borde); border-radius: 14px; padding: 18px; margin-top: 20px; text-align: left; max-width: 340px; width: 100%; }
+  .seg-estado { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+  .seg-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--borde); flex-shrink: 0; }
+  .seg-dot.done { background: var(--verde); }
+  .seg-dot.active { background: var(--verde); box-shadow: 0 0 0 4px var(--verde-claro); }
+  .seg-label { font-size: 14px; color: var(--muted); }
+  .seg-label.active { color: var(--verde); font-weight: 600; }
+  .seg-label.done { color: var(--texto); }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 15px; grid-column: 1/-1; }
+  .empty-state .emoji { font-size: 40px; margin-bottom: 8px; }
+
+  .loading { text-align: center; padding: 40px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="loading-screen" class="loading">
+  <div style="font-size:36px;margin-bottom:12px;">🏪</div>
+  Cargando bodega...
+</div>
+
+<!-- PANTALLA BLOQUEADA -->
+<div id="pantalla-bloqueada">
+  <div class="icono">🔒</div>
+  <h2>No disponible por el momento</h2>
+  <p>Esta bodega no está disponible en este momento.<br>Intenta más tarde.</p>
+</div>
+
+<!-- APP PRINCIPAL -->
+<div id="app-principal" style="display:none;">
+  <div class="header">
+    <div class="header-top">
+      <div class="header-logo">🏪 Bodega Digital</div>
+      <button class="carrito-btn" onclick="toggleCarrito()">
+        🛒 Carrito
+        <span class="carrito-count" id="carrito-count">0</span>
+      </button>
+    </div>
+    <div class="bodega-titulo" id="bodega-titulo">Cargando...</div>
+    <div class="bodega-subtitulo" id="bodega-subtitulo"></div>
+  </div>
+
+  <div style="position:relative;">
+    <div class="busqueda-wrapper">
+      <span class="busqueda-icono">🔍</span>
+      <input class="busqueda-input" type="text" placeholder="Buscar producto..." id="busqueda" oninput="filtrarProductos()" style="padding-left:40px;"/>
+    </div>
+  </div>
+
+  <div class="cats" id="cats-container"></div>
+
+  <div class="main" id="catalogo"></div>
+</div>
+
+<!-- ÉXITO -->
+<div id="pantalla-exito">
+  <div class="check">✅</div>
+  <h2>¡Pedido enviado!</h2>
+  <p>Tu pedido fue recibido por la bodega.</p>
+  <p id="exito-nombre"></p>
+  <div class="seguimiento" id="seguimiento-box" style="display:none;">
+    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px;margin-bottom:12px;">Estado del pedido</div>
+    <div class="seg-estado"><div class="seg-dot done" id="dot-nuevo"></div><span class="seg-label done" id="lbl-nuevo">Pedido recibido</span></div>
+    <div class="seg-estado"><div class="seg-dot" id="dot-preparando"></div><span class="seg-label" id="lbl-preparando">Preparando</span></div>
+    <div class="seg-estado"><div class="seg-dot" id="dot-listo"></div><span class="seg-label" id="lbl-listo">Listo para entrega</span></div>
+    <div class="seg-estado"><div class="seg-dot" id="dot-completado"></div><span class="seg-label" id="lbl-completado">Entregado</span></div>
+  </div>
+  <button onclick="reiniciar()" style="margin-top:24px;background:var(--verde-claro);color:var(--verde);border:none;padding:12px 28px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Hacer otro pedido</button>
+</div>
+
+<!-- CARRITO DRAWER -->
+<div class="carrito-overlay" id="carrito-overlay" onclick="toggleCarrito()"></div>
+<div class="carrito-drawer" id="carrito-drawer">
+  <div class="carrito-handle"></div>
+  <div class="carrito-header">
+    <h2>Tu pedido</h2>
+  </div>
+  <div class="carrito-items" id="carrito-items-list"></div>
+  <div class="carrito-footer">
+    <div id="paso-resumen">
+      <div class="carrito-total-row">
+        <span class="carrito-total-label">Total</span>
+        <span class="carrito-total-valor" id="carrito-total">S/ 0.00</span>
+      </div>
+      <button class="btn-pedido" onclick="irAFormulario()">Confirmar pedido →</button>
+    </div>
+    <div class="form-pedido" id="form-pedido">
+      <button class="btn-volver" onclick="volverResumen()">← Volver</button>
+      <div class="campo"><label>Tu nombre</label><input type="text" id="cli-nombre" placeholder="Ej: María García"/></div>
+      <div class="campo"><label>Teléfono (opcional)</label><input type="tel" id="cli-telefono" placeholder="+51 999 888 777"/></div>
+      <div class="campo"><label>Nota al vendedor (opcional)</label><textarea id="cli-nota" placeholder="Ej: Sin cebolla, por favor..."></textarea></div>
+      <div class="carrito-total-row" style="margin-bottom:12px;">
+        <span class="carrito-total-label">Total a pagar</span>
+        <span class="carrito-total-valor" id="total-confirmacion">S/ 0.00</span>
+      </div>
+      <button class="btn-pedido" id="btn-enviar" onclick="enviarPedido()">Enviar pedido 🚀</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBHlpEb3YQ7S72XF4sElaTwcYlylv_bkAM",
+  authDomain: "bodega-digital-a395d.firebaseapp.com",
+  projectId: "bodega-digital-a395d",
+  storageBucket: "bodega-digital-a395d.firebasestorage.app",
+  messagingSenderId: "859301047460",
+  appId: "1:859301047460:web:54d13e9a7f3ccaa274ca31"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const params = new URLSearchParams(location.search);
+const bodegaId = params.get('bodega');
+let bodegaInfo = null;
+let productosAll = [];
+let carrito = {};
+let catActiva = 'todos';
+let pedidoId = null;
+
+async function init() {
+  if (!bodegaId) { mostrarBloqueado('Enlace inválido'); return; }
+  try {
+    const doc = await db.collection('bodegas').doc(bodegaId).get();
+    if (!doc.exists) { mostrarBloqueado(); return; }
+    bodegaInfo = doc.data();
+    // Verificar bloqueo y horario
+    const ahora = new Date();
+    const hora = ahora.getHours();
+    const bloqueado = bodegaInfo.estado === 'bloqueado';
+    const fueraHorario = hora >= 18 || hora < 0;
+    if (bloqueado || fueraHorario) { mostrarBloqueado(); return; }
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('app-principal').style.display = 'block';
+    document.getElementById('bodega-titulo').textContent = bodegaInfo.nombre || 'Bodega';
+    document.getElementById('bodega-subtitulo').textContent = bodegaInfo.propietario ? '👤 ' + bodegaInfo.propietario : '';
+    cargarProductos();
+  } catch(e) {
+    mostrarBloqueado();
+  }
+}
+
+function mostrarBloqueado() {
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('pantalla-bloqueada').style.display = 'flex';
+}
+
+async function cargarProductos() {
+  const snap = await db.collection('bodegas').doc(bodegaId).collection('productos').get();
+  productosAll = [];
+  snap.forEach(doc => productosAll.push({ id: doc.id, ...doc.data() }));
+  renderCats();
+  renderProductos(productosAll);
+}
+
+function getCats() {
+  const cats = ['todos'];
+  const mapa = { bebidas:'🥤 Bebidas', snacks:'🍿 Snacks', lacteos:'🥛 Lácteos', panaderia:'🍞 Panadería', limpieza:'🧹 Limpieza', frutas:'🍎 Frutas', otros:'📦 Otros' };
+  productosAll.forEach(p => { if (p.categoria && !cats.includes(p.categoria)) cats.push(p.categoria); });
+  return cats.map(c => ({ key: c, label: c === 'todos' ? '🛒 Todos' : (mapa[c] || c) }));
+}
+
+function renderCats() {
+  const cont = document.getElementById('cats-container');
+  cont.innerHTML = getCats().map(c => `<button class="cat-btn ${c.key===catActiva?'active':''}" onclick="selCat('${c.key}')">${c.label}</button>`).join('');
+}
+
+function selCat(cat) {
+  catActiva = cat;
+  renderCats();
+  filtrarProductos();
+}
+
+function filtrarProductos() {
+  const q = document.getElementById('busqueda').value.toLowerCase();
+  let prods = productosAll;
+  if (catActiva !== 'todos') prods = prods.filter(p => p.categoria === catActiva);
+  if (q) prods = prods.filter(p => p.nombre.toLowerCase().includes(q));
+  renderProductos(prods);
+}
+
+function renderProductos(prods) {
+  const cont = document.getElementById('catalogo');
+  if (!prods.length) {
+    cont.innerHTML = '<div class="empty-state"><div class="emoji">🔍</div>No se encontraron productos</div>';
+    return;
+  }
+  cont.innerHTML = `<div class="productos-grid">${prods.map(p => {
+    const cant = carrito[p.id]?.cantidad || 0;
+    const sinStock = p.stock <= 0;
+    const img = p.fotoUrl
+      ? `<img class="prod-foto" src="${p.fotoUrl}" alt="${p.nombre}" loading="lazy"/>`
+      : `<div class="prod-foto-placeholder">🛒</div>`;
+    const control = sinStock ? '' : cant > 0
+      ? `<div class="cant-control">
+          <button class="cant-btn" onclick="cambiarCant('${p.id}',event,-1)">−</button>
+          <span class="cant-num">${cant}</span>
+          <button class="cant-btn" onclick="cambiarCant('${p.id}',event,1)">+</button>
+         </div>`
+      : `<button class="prod-agregar" onclick="agregarAlCarrito('${p.id}',event)">+ Agregar</button>`;
+    return `<div class="prod-card ${sinStock?'sin-stock':''} ${cant>0?'en-carrito':''}" onclick="${!sinStock&&cant===0?`agregarAlCarrito('${p.id}',event)`:''}">
+      ${img}
+      <div class="prod-info">
+        <div class="prod-nombre">${p.nombre}</div>
+        <div class="prod-precio">S/ ${parseFloat(p.precio).toFixed(2)}</div>
+        <div class="prod-stock-label">${sinStock ? '❌ Sin stock' : `Stock: ${p.stock}`}</div>
+        ${control}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function agregarAlCarrito(pid, e) {
+  if (e) e.stopPropagation();
+  const prod = productosAll.find(p => p.id === pid);
+  if (!prod || prod.stock <= 0) return;
+  if (!carrito[pid]) carrito[pid] = { ...prod, cantidad: 0 };
+  if (carrito[pid].cantidad < prod.stock) carrito[pid].cantidad++;
+  actualizarCarrito();
+  filtrarProductos();
+}
+
+function cambiarCant(pid, e, delta) {
+  e.stopPropagation();
+  if (!carrito[pid]) return;
+  const prod = productosAll.find(p => p.id === pid);
+  carrito[pid].cantidad += delta;
+  if (carrito[pid].cantidad <= 0 || (delta > 0 && carrito[pid].cantidad > (prod?.stock||99))) {
+    if (delta < 0 && carrito[pid].cantidad <= 0) delete carrito[pid];
+  }
+  if (carrito[pid] && carrito[pid].cantidad > (prod?.stock||99)) carrito[pid].cantidad = prod.stock;
+  actualizarCarrito();
+  filtrarProductos();
+}
+
+function actualizarCarrito() {
+  const items = Object.values(carrito);
+  const total = items.reduce((s,i) => s + i.precio * i.cantidad, 0);
+  document.getElementById('carrito-count').textContent = items.reduce((s,i) => s + i.cantidad, 0);
+  document.getElementById('carrito-total').textContent = 'S/ ' + total.toFixed(2);
+  document.getElementById('total-confirmacion').textContent = 'S/ ' + total.toFixed(2);
+  renderCarritoItems(items);
+}
+
+function renderCarritoItems(items) {
+  const cont = document.getElementById('carrito-items-list');
+  if (!items.length) { cont.innerHTML = '<div class="empty-state"><div class="emoji">🛒</div>Tu carrito está vacío</div>'; return; }
+  cont.innerHTML = items.map(it => {
+    const img = it.fotoUrl ? `<img class="carrito-item-foto" src="${it.fotoUrl}" alt="${it.nombre}"/>` : `<div class="carrito-item-foto" style="display:flex;align-items:center;justify-content:center;font-size:22px;">🛒</div>`;
+    return `<div class="carrito-item">
+      ${img}
+      <div class="carrito-item-info">
+        <div class="carrito-item-nombre">${it.nombre}</div>
+        <div class="carrito-item-precio">x${it.cantidad} × S/${it.precio.toFixed(2)}</div>
+      </div>
+      <div class="carrito-item-total">S/ ${(it.precio*it.cantidad).toFixed(2)}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleCarrito() {
+  const overlay = document.getElementById('carrito-overlay');
+  const drawer = document.getElementById('carrito-drawer');
+  overlay.classList.toggle('show');
+  drawer.classList.toggle('show');
+  document.getElementById('paso-resumen').style.display = 'block';
+  document.getElementById('form-pedido').classList.remove('show');
+}
+
+function irAFormulario() {
+  if (!Object.keys(carrito).length) return alert('Agrega al menos un producto.');
+  document.getElementById('paso-resumen').style.display = 'none';
+  document.getElementById('form-pedido').classList.add('show');
+}
+
+function volverResumen() {
+  document.getElementById('paso-resumen').style.display = 'block';
+  document.getElementById('form-pedido').classList.remove('show');
+}
+
+async function enviarPedido() {
+  const nombre = document.getElementById('cli-nombre').value.trim();
+  if (!nombre) return alert('Por favor ingresa tu nombre.');
+  const btn = document.getElementById('btn-enviar');
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  const items = Object.values(carrito).map(it => ({ id: it.id, nombre: it.nombre, precio: it.precio, cantidad: it.cantidad }));
+  const total = items.reduce((s,i) => s + i.precio * i.cantidad, 0);
+  const hoy = new Date().toISOString().split('T')[0];
+  const datos = {
+    bodegaId, bodegaNombre: bodegaInfo.nombre,
+    clienteNombre: nombre,
+    clienteTelefono: document.getElementById('cli-telefono').value.trim(),
+    nota: document.getElementById('cli-nota').value.trim(),
+    items, total,
+    estado: 'nuevo',
+    fecha: hoy,
+    creadoEn: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  try {
+    const ref = await db.collection('pedidos').add(datos);
+    pedidoId = ref.id;
+    document.getElementById('carrito-overlay').classList.remove('show');
+    document.getElementById('carrito-drawer').classList.remove('show');
+    document.getElementById('app-principal').style.display = 'none';
+    const exito = document.getElementById('pantalla-exito');
+    exito.style.display = 'flex';
+    document.getElementById('exito-nombre').textContent = '¡Hola, ' + nombre + '! La bodega está preparando tu pedido.';
+    document.getElementById('seguimiento-box').style.display = 'block';
+    escucharPedido(pedidoId);
+  } catch(e) {
+    alert('Error al enviar el pedido. Intenta de nuevo.');
+    btn.disabled = false; btn.textContent = 'Enviar pedido 🚀';
+  }
+}
+
+function escucharPedido(pid) {
+  db.collection('pedidos').doc(pid).onSnapshot(doc => {
+    const estado = doc.data()?.estado;
+    const pasos = ['nuevo','preparando','listo','completado'];
+    const idx = pasos.indexOf(estado);
+    const labels = ['Pedido recibido','Preparando','Listo para entrega','Entregado'];
+    pasos.forEach((p,i) => {
+      const dot = document.getElementById('dot-' + (p==='completado'?'completado':p));
+      const lbl = document.getElementById('lbl-' + (p==='completado'?'completado':p));
+      if (!dot || !lbl) return;
+      dot.className = 'seg-dot ' + (i < idx ? 'done' : i === idx ? 'active' : '');
+      lbl.className = 'seg-label ' + (i < idx ? 'done' : i === idx ? 'active' : '');
+      lbl.textContent = labels[i];
+    });
+  });
+}
+
+function reiniciar() {
+  carrito = {};
+  pedidoId = null;
+  document.getElementById('pantalla-exito').style.display = 'none';
+  document.getElementById('app-principal').style.display = 'block';
+  actualizarCarrito();
+  filtrarProductos();
+}
+
+// Verificar estado de bodega cada 2 minutos
+setInterval(async () => {
+  const doc = await db.collection('bodegas').doc(bodegaId).get();
+  const data = doc.data();
+  const ahora = new Date();
+  if (data.estado === 'bloqueado' || ahora.getHours() >= 18) {
+    document.getElementById('app-principal').style.display = 'none';
+    mostrarBloqueado();
+  }
+}, 120000);
+
+init();
+</script>
+</body>
+</html>

@@ -493,16 +493,6 @@ function reiniciar() {
   filtrarProductos();
 }
 
-// Verificar estado de bodega cada 2 minutos
-setInterval(async () => {
-  const doc = await db.collection('bodegas').doc(bodegaId).get();
-  const data = doc.data();
-  if (data.estado === 'bloqueado') {
-    document.getElementById('app-principal').style.display = 'none';
-    mostrarBloqueado();
-  }
-}, 120000);
-
 init();
 </script>
 </body>

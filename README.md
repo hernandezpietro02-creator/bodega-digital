@@ -1,0 +1,742 @@
+[admin.html](https://github.com/user-attachments/files/27807668/admin.html)
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Admin — Bodega Digital</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+  :root {
+    --verde: #1a7a4a;
+    --verde-claro: #e8f5ee;
+    --verde-acento: #25c26e;
+    --rojo: #c0392b;
+    --rojo-claro: #fdecea;
+    --amarillo: #f39c12;
+    --bg: #f5f6f0;
+    --card: #ffffff;
+    --texto: #1c1c1c;
+    --muted: #6b7280;
+    --borde: #e0e4d8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--texto); min-height: 100vh; }
+  
+  /* LOGIN */
+  #login-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #0f3d25 0%, #1a7a4a 60%, #25c26e 100%);
+  }
+  .login-box {
+    background: white;
+    border-radius: 20px;
+    padding: 48px 40px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.18);
+  }
+  .login-box h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--verde);
+    margin-bottom: 6px;
+  }
+  .login-box p { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+  .campo label { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
+  .campo input {
+    width: 100%; padding: 12px 14px; border: 1.5px solid var(--borde);
+    border-radius: 10px; font-size: 15px; font-family: 'DM Sans', sans-serif;
+    transition: border 0.2s; background: #fafafa;
+  }
+  .campo input:focus { outline: none; border-color: var(--verde); background: white; }
+  .campo { margin-bottom: 16px; }
+  .btn-primary {
+    width: 100%; padding: 13px; background: var(--verde);
+    color: white; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 600; font-family: 'DM Sans', sans-serif;
+    cursor: pointer; margin-top: 8px; transition: background 0.2s, transform 0.1s;
+  }
+  .btn-primary:hover { background: #155c38; }
+  .btn-primary:active { transform: scale(0.98); }
+  #login-error { color: var(--rojo); font-size: 13px; margin-top: 10px; display: none; }
+
+  /* MAIN APP */
+  #app { display: none; }
+  .topbar {
+    background: white;
+    border-bottom: 1.5px solid var(--borde);
+    padding: 0 32px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--verde);
+  }
+  .topbar-logo span { color: var(--verde-acento); }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .badge-admin {
+    background: var(--verde-claro);
+    color: var(--verde);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .btn-salir {
+    background: none; border: 1.5px solid var(--borde);
+    padding: 7px 16px; border-radius: 8px;
+    font-size: 13px; cursor: pointer; font-family: 'DM Sans', sans-serif;
+    color: var(--muted); transition: all 0.2s;
+  }
+  .btn-salir:hover { border-color: var(--rojo); color: var(--rojo); }
+
+  .main-content { padding: 32px; max-width: 1200px; margin: 0 auto; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .stat-card {
+    background: white;
+    border: 1.5px solid var(--borde);
+    border-radius: 14px;
+    padding: 20px 22px;
+  }
+  .stat-card .label { font-size: 12px; color: var(--muted); font-weight: 500; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-card .value { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 700; color: var(--texto); }
+  .stat-card .value.verde { color: var(--verde); }
+  .stat-card .value.rojo { color: var(--rojo); }
+  .stat-card .value.amarillo { color: var(--amarillo); }
+
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .section-header h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px; font-weight: 700;
+  }
+  .btn-verde {
+    background: var(--verde); color: white;
+    border: none; padding: 9px 18px; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; transition: background 0.2s;
+  }
+  .btn-verde:hover { background: #155c38; }
+
+  /* TABLA BODEGAS */
+  .tabla-wrapper { background: white; border: 1.5px solid var(--borde); border-radius: 14px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  thead th {
+    background: #f8f9f5;
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1.5px solid var(--borde);
+  }
+  tbody tr { border-bottom: 1px solid var(--borde); transition: background 0.15s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #fafbf8; }
+  tbody td { padding: 14px 16px; vertical-align: middle; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+  }
+  .pill.activo { background: #d4edda; color: #1a5c2a; }
+  .pill.bloqueado { background: var(--rojo-claro); color: var(--rojo); }
+  .pill.pendiente { background: #fff3cd; color: #856404; }
+
+  .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  .acciones { display: flex; gap: 8px; }
+  .btn-sm {
+    padding: 6px 12px; border-radius: 6px; font-size: 12px;
+    font-weight: 600; cursor: pointer; border: none;
+    font-family: 'DM Sans', sans-serif; transition: all 0.15s;
+  }
+  .btn-bloquear { background: var(--rojo-claro); color: var(--rojo); }
+  .btn-bloquear:hover { background: var(--rojo); color: white; }
+  .btn-activar { background: var(--verde-claro); color: var(--verde); }
+  .btn-activar:hover { background: var(--verde); color: white; }
+  .btn-qr { background: #e8eaf6; color: #3949ab; }
+  .btn-qr:hover { background: #3949ab; color: white; }
+  .btn-detalle { background: #f3f4f6; color: #374151; }
+  .btn-detalle:hover { background: #374151; color: white; }
+  .btn-eliminar { background: var(--rojo-claro); color: var(--rojo); }
+  .btn-eliminar:hover { background: var(--rojo); color: white; }
+
+  /* VENTAS POR DÍA */
+  .ventas-section { margin-top: 32px; }
+  .ventas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .venta-card {
+    background: white; border: 1.5px solid var(--borde);
+    border-radius: 14px; padding: 18px 20px;
+  }
+  .venta-card h3 { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .venta-card .monto { font-size: 24px; font-weight: 700; color: var(--verde); font-family: 'Syne', sans-serif; margin: 8px 0 4px; }
+  .venta-card .comision { font-size: 13px; color: var(--muted); }
+  .venta-card .comision strong { color: var(--rojo); }
+  .venta-card .estado-pago { margin-top: 10px; }
+
+  .pill.pagado { background: #d4edda; color: #1a5c2a; }
+  .pill.no-pagado { background: var(--rojo-claro); color: var(--rojo); }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45); z-index: 999;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: white; border-radius: 16px;
+    padding: 32px; width: 100%; max-width: 480px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  }
+  .modal h2 { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 20px; }
+  .modal .campo input { background: white; }
+  .modal-btns { display: flex; gap: 12px; margin-top: 20px; justify-content: flex-end; }
+  .btn-cancelar {
+    background: none; border: 1.5px solid var(--borde);
+    padding: 10px 18px; border-radius: 8px;
+    font-size: 14px; cursor: pointer; font-family: 'DM Sans', sans-serif;
+  }
+
+  /* QR MODAL */
+  #qr-modal .modal { max-width: 340px; text-align: center; }
+  #qr-modal h2 { margin-bottom: 10px; }
+  #qr-modal p { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  #qr-container { display: flex; justify-content: center; margin-bottom: 12px; }
+  #qr-url {
+    font-size: 12px; color: var(--verde); word-break: break-all;
+    background: var(--verde-claro); padding: 8px 12px; border-radius: 8px;
+  }
+
+  /* DETALLE VENTA */
+  #detalle-modal .modal { max-width: 520px; }
+  .productos-lista { margin-top: 12px; }
+  .prod-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid var(--borde); font-size: 14px;
+  }
+  .prod-item:last-child { border-bottom: none; }
+  .prod-item .nombre { font-weight: 500; }
+  .prod-item .cant { color: var(--muted); font-size: 13px; }
+  .prod-item .subtotal { font-weight: 600; color: var(--verde); }
+
+  .fecha-selector {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .fecha-selector input[type=date] {
+    padding: 8px 12px; border: 1.5px solid var(--borde);
+    border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px;
+    background: white; cursor: pointer;
+  }
+
+  @media (max-width: 600px) {
+    .main-content { padding: 16px; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .topbar { padding: 0 16px; }
+    .ventas-grid { grid-template-columns: 1fr; }
+    table { font-size: 12px; }
+    tbody td, thead th { padding: 10px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>🏪 Bodega Digital</h1>
+    <p>Panel de Administrador</p>
+    <div class="campo">
+      <label>Correo electrónico</label>
+      <input type="email" id="email" placeholder="admin@bodegadigital.com"/>
+    </div>
+    <div class="campo">
+      <label>Contraseña</label>
+      <input type="password" id="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()"/>
+    </div>
+    <button class="btn-primary" onclick="login()">Ingresar como Admin</button>
+    <div id="login-error">Correo o contraseña incorrectos.</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-logo">Bodega<span>Digital</span></div>
+    <div class="topbar-right">
+      <span class="badge-admin">⚙️ Administrador</span>
+      <button class="btn-salir" onclick="salir()">Salir</button>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <!-- STATS -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Bodegas activas</div>
+        <div class="value verde" id="stat-activas">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Bodegas bloqueadas</div>
+        <div class="value rojo" id="stat-bloqueadas">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Total bodegas</div>
+        <div class="value" id="stat-total">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Comisión del día (10%)</div>
+        <div class="value verde" id="stat-comision">S/ 0.00</div>
+      </div>
+    </div>
+
+    <!-- BODEGAS -->
+    <div class="section-header">
+      <h2>Bodegas registradas</h2>
+      <button class="btn-verde" onclick="abrirModalNuevaBodega()">+ Nueva bodega</button>
+    </div>
+    <div class="tabla-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Bodega</th>
+            <th>Propietario</th>
+            <th>Estado</th>
+            <th>Venta hoy</th>
+            <th>Comisión (10%)</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-bodegas">
+          <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- VENTAS HOY -->
+    <div class="ventas-section">
+      <div class="section-header">
+        <h2>Ventas por bodega hoy</h2>
+        <div class="fecha-selector">
+          <input type="date" id="fecha-filtro" onchange="cargarVentasFecha()"/>
+        </div>
+      </div>
+      <div class="ventas-grid" id="ventas-grid">
+        <div style="color:var(--muted);font-size:14px;">Cargando ventas...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NUEVA BODEGA -->
+<div class="modal-overlay" id="modal-bodega">
+  <div class="modal">
+    <h2>Registrar nueva bodega</h2>
+    <div class="campo">
+      <label>Nombre de la bodega</label>
+      <input type="text" id="nb-nombre" placeholder="Ej: Bodega Don Carlos"/>
+    </div>
+    <div class="campo">
+      <label>Nombre del propietario</label>
+      <input type="text" id="nb-propietario" placeholder="Ej: Carlos Flores"/>
+    </div>
+    <div class="campo">
+      <label>Correo (para acceso)</label>
+      <input type="email" id="nb-email" placeholder="bodega@correo.com"/>
+    </div>
+    <div class="campo">
+      <label>Contraseña inicial</label>
+      <input type="password" id="nb-pass" placeholder="Mínimo 6 caracteres"/>
+    </div>
+    <div class="campo">
+      <label>Teléfono (opcional)</label>
+      <input type="tel" id="nb-telefono" placeholder="+51 999 888 777"/>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="cerrarModal('modal-bodega')">Cancelar</button>
+      <button class="btn-verde" onclick="crearBodega()">Crear bodega</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL QR -->
+<div class="modal-overlay" id="qr-modal">
+  <div class="modal">
+    <h2>Código QR de la bodega</h2>
+    <p id="qr-nombre-bodega">Compartir con clientes</p>
+    <div id="qr-container"></div>
+    <div id="qr-url"></div>
+    <div class="modal-btns" style="justify-content:center;margin-top:16px;">
+      <button class="btn-cancelar" onclick="cerrarModal('qr-modal')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALLE VENTAS -->
+<div class="modal-overlay" id="detalle-modal">
+  <div class="modal">
+    <h2 id="detalle-titulo">Detalle de ventas</h2>
+    <div id="detalle-resumen" style="margin-bottom:12px;"></div>
+    <div class="productos-lista" id="detalle-productos"></div>
+    <div class="modal-btns" style="justify-content:center;">
+      <button class="btn-cancelar" onclick="cerrarModal('detalle-modal')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ELIMINAR BODEGA -->
+<div class="modal-overlay" id="eliminar-modal">
+  <div class="modal" style="max-width:420px;">
+    <h2 style="color:var(--rojo);">⚠️ Eliminar bodega</h2>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:10px;">Estás a punto de eliminar permanentemente la bodega:</p>
+    <p id="eliminar-nombre-bodega" style="font-weight:700;font-size:16px;margin-bottom:16px;color:var(--texto);"></p>
+    <p style="color:var(--rojo);font-size:13px;background:var(--rojo-claro);padding:10px 14px;border-radius:8px;margin-bottom:4px;">
+      Esta acción no se puede deshacer. Se eliminarán todos los datos de la bodega de Firestore.
+    </p>
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="cerrarModal('eliminar-modal')">Cancelar</button>
+      <button class="btn-sm btn-eliminar" id="btn-confirmar-eliminar" style="padding:10px 18px;font-size:14px;" onclick="eliminarBodega()">Sí, eliminar</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+// ============================
+// CONFIGURACIÓN FIREBASE
+// Reemplaza con tus datos de Firebase
+// ============================
+const firebaseConfig = {
+  apiKey: "AIzaSyBHlpEb3YQ7S72XF4sElaTwcYlylv_bkAM",
+  authDomain: "bodega-digital-a395d.firebaseapp.com",
+  projectId: "bodega-digital-a395d",
+  storageBucket: "bodega-digital-a395d.firebasestorage.app",
+  messagingSenderId: "859301047460",
+  appId: "1:859301047460:web:54d13e9a7f3ccaa274ca31"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// URL base del cliente (cambia por tu dominio o GitHub Pages)
+const BASE_URL = "https://TU_USUARIO.github.io/bodega-digital/cliente.html";
+
+// ============================
+// LOGIN
+// ============================
+function login() {
+  const email = document.getElementById('email').value.trim();
+  const pass = document.getElementById('password').value;
+  auth.signInWithEmailAndPassword(email, pass)
+    .then(() => {})
+    .catch(() => {
+      document.getElementById('login-error').style.display = 'block';
+    });
+}
+
+function salir() {
+  auth.signOut();
+}
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    iniciarApp();
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+});
+
+// ============================
+// APP PRINCIPAL
+// ============================
+let bodegasCache = [];
+
+function iniciarApp() {
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('fecha-filtro').value = hoy;
+  escucharBodegas();
+  cargarVentasFecha();
+}
+
+function escucharBodegas() {
+  db.collection('bodegas').onSnapshot(snap => {
+    bodegasCache = [];
+    snap.forEach(doc => bodegasCache.push({ id: doc.id, ...doc.data() }));
+    renderTabla();
+    actualizarStats();
+  });
+}
+
+function renderTabla() {
+  const tbody = document.getElementById('tabla-bodegas');
+  if (!bodegasCache.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">Sin bodegas registradas</td></tr>';
+    return;
+  }
+  tbody.innerHTML = bodegasCache.map(b => {
+    const ventaHoy = b.ventaHoy || 0;
+    const comision = (ventaHoy * 0.1).toFixed(2);
+    const estadoPill = b.estado === 'activo'
+      ? `<span class="pill activo"><span class="pill-dot"></span>Activo</span>`
+      : `<span class="pill bloqueado"><span class="pill-dot"></span>Bloqueado</span>`;
+    const btnEstado = b.estado === 'activo'
+      ? `<button class="btn-sm btn-bloquear" onclick="cambiarEstado('${b.id}','bloqueado')">Bloquear</button>`
+      : `<button class="btn-sm btn-activar" onclick="cambiarEstado('${b.id}','activo')">Activar</button>`;
+    return `<tr>
+      <td><strong>${b.nombre}</strong></td>
+      <td>${b.propietario}</td>
+      <td>${estadoPill}</td>
+      <td>S/ ${ventaHoy.toFixed(2)}</td>
+      <td style="color:var(--rojo);font-weight:600;">S/ ${comision}</td>
+      <td>
+        <div class="acciones">
+          ${btnEstado}
+          <button class="btn-sm btn-qr" onclick="mostrarQR('${b.id}','${b.nombre}')">QR</button>
+          <button class="btn-sm btn-detalle" onclick="verDetalle('${b.id}','${b.nombre}')">Detalle</button>
+          <button class="btn-sm btn-eliminar" onclick="confirmarEliminar('${b.id}','${b.nombre}')">🗑 Eliminar</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function actualizarStats() {
+  const activas = bodegasCache.filter(b => b.estado === 'activo').length;
+  const bloqueadas = bodegasCache.filter(b => b.estado === 'bloqueado').length;
+  const totalVenta = bodegasCache.reduce((s, b) => s + (b.ventaHoy || 0), 0);
+  document.getElementById('stat-activas').textContent = activas;
+  document.getElementById('stat-bloqueadas').textContent = bloqueadas;
+  document.getElementById('stat-total').textContent = bodegasCache.length;
+  document.getElementById('stat-comision').textContent = 'S/ ' + (totalVenta * 0.1).toFixed(2);
+}
+
+function cambiarEstado(id, nuevoEstado) {
+  db.collection('bodegas').doc(id).update({ estado: nuevoEstado });
+}
+
+// ============================
+// QR
+// ============================
+function mostrarQR(id, nombre) {
+  document.getElementById('qr-nombre-bodega').textContent = nombre;
+  const url = BASE_URL + "?bodega=" + id;
+  document.getElementById('qr-url').textContent = url;
+  const cont = document.getElementById('qr-container');
+  cont.innerHTML = '';
+  new QRCode(cont, { text: url, width: 180, height: 180, colorLight: "#ffffff", colorDark: "#1a7a4a" });
+  document.getElementById('qr-modal').classList.add('show');
+}
+
+// ============================
+// VENTAS POR FECHA
+// ============================
+async function cargarVentasFecha() {
+  const fecha = document.getElementById('fecha-filtro').value;
+  const grid = document.getElementById('ventas-grid');
+  grid.innerHTML = '<div style="color:var(--muted);font-size:14px;">Cargando...</div>';
+  try {
+    const snap = await db.collection('pedidos')
+      .where('fecha', '==', fecha)
+      .where('estado', '==', 'completado')
+      .get();
+    const porBodega = {};
+    snap.forEach(doc => {
+      const d = doc.data();
+      if (!porBodega[d.bodegaId]) porBodega[d.bodegaId] = { total: 0, nombre: d.bodegaNombre, items: [] };
+      porBodega[d.bodegaId].total += d.total || 0;
+      (d.items || []).forEach(it => {
+        const ex = porBodega[d.bodegaId].items.find(x => x.nombre === it.nombre);
+        if (ex) ex.cantidad += it.cantidad;
+        else porBodega[d.bodegaId].items.push({ ...it });
+      });
+    });
+    if (!Object.keys(porBodega).length) {
+      grid.innerHTML = '<div style="color:var(--muted);font-size:14px;">Sin ventas para esta fecha.</div>';
+      return;
+    }
+    grid.innerHTML = Object.entries(porBodega).map(([bid, data]) => {
+      const comision = (data.total * 0.1).toFixed(2);
+      const bodega = bodegasCache.find(b => b.id === bid);
+      const pagado = bodega?.comisionPagada?.[fecha];
+      const estadoPago = pagado
+        ? `<span class="pill pagado">✓ Pagado</span>`
+        : `<span class="pill no-pagado">Pendiente pago</span>`;
+      return `<div class="venta-card">
+        <h3>${data.nombre || 'Bodega'}</h3>
+        <div class="monto">S/ ${data.total.toFixed(2)}</div>
+        <div class="comision">Comisión 10%: <strong>S/ ${comision}</strong></div>
+        <div class="estado-pago">${estadoPago}</div>
+        ${!pagado ? `<button class="btn-verde" style="width:100%;margin-top:10px;font-size:13px;padding:8px;" onclick="marcarPagado('${bid}','${fecha}')">Marcar como pagado</button>` : ''}
+      </div>`;
+    }).join('');
+  } catch(e) {
+    grid.innerHTML = '<div style="color:var(--rojo);">Error al cargar ventas.</div>';
+    console.error(e);
+  }
+}
+
+async function marcarPagado(bodegaId, fecha) {
+  await db.collection('bodegas').doc(bodegaId).update({
+    [`comisionPagada.${fecha}`]: true,
+    estado: 'activo'
+  });
+  cargarVentasFecha();
+}
+
+// ============================
+// DETALLE
+// ============================
+async function verDetalle(bid, nombre) {
+  document.getElementById('detalle-titulo').textContent = 'Ventas: ' + nombre;
+  const fecha = document.getElementById('fecha-filtro').value;
+  document.getElementById('detalle-resumen').innerHTML = `<span style="color:var(--muted);font-size:13px;">Fecha: ${fecha}</span>`;
+  const prods = document.getElementById('detalle-productos');
+  prods.innerHTML = 'Cargando...';
+  document.getElementById('detalle-modal').classList.add('show');
+  const snap = await db.collection('pedidos')
+    .where('fecha', '==', fecha)
+    .where('bodegaId', '==', bid)
+    .where('estado', '==', 'completado').get();
+  const mapa = {};
+  let total = 0;
+  snap.forEach(doc => {
+    const d = doc.data();
+    total += d.total || 0;
+    (d.items || []).forEach(it => {
+      if (!mapa[it.nombre]) mapa[it.nombre] = { cantidad: 0, precio: it.precio };
+      mapa[it.nombre].cantidad += it.cantidad;
+    });
+  });
+  if (!Object.keys(mapa).length) {
+    prods.innerHTML = '<div style="color:var(--muted);text-align:center;padding:16px;">Sin ventas completadas para esta fecha.</div>';
+    return;
+  }
+  prods.innerHTML = Object.entries(mapa).map(([nombre, d]) => `
+    <div class="prod-item">
+      <span class="nombre">${nombre}</span>
+      <span class="cant">x${d.cantidad} × S/${d.precio.toFixed(2)}</span>
+      <span class="subtotal">S/ ${(d.cantidad * d.precio).toFixed(2)}</span>
+    </div>
+  `).join('') + `<div class="prod-item" style="font-weight:700;">
+    <span>TOTAL</span><span></span><span class="subtotal">S/ ${total.toFixed(2)}</span>
+  </div>`;
+}
+
+// ============================
+// CREAR BODEGA
+// ============================
+function abrirModalNuevaBodega() {
+  document.getElementById('modal-bodega').classList.add('show');
+}
+
+async function crearBodega() {
+  const nombre = document.getElementById('nb-nombre').value.trim();
+  const propietario = document.getElementById('nb-propietario').value.trim();
+  const email = document.getElementById('nb-email').value.trim();
+  const pass = document.getElementById('nb-pass').value;
+  const telefono = document.getElementById('nb-telefono').value.trim();
+  if (!nombre || !propietario || !email || !pass) return alert('Completa todos los campos obligatorios.');
+  try {
+    const adminUser = auth.currentUser;
+    const secondary = firebase.initializeApp(firebaseConfig, 'secondary');
+    const secAuth = secondary.auth();
+    const cred = await secAuth.createUserWithEmailAndPassword(email, pass);
+    const uid = cred.user.uid;
+    await secAuth.signOut();
+    await secondary.delete();
+    await db.collection('bodegas').doc(uid).set({
+      nombre, propietario, email, telefono,
+      estado: 'activo',
+      ventaHoy: 0,
+      comisionPagada: {},
+      creadoEn: new Date().toISOString()
+    });
+    cerrarModal('modal-bodega');
+    limpiarModalBodega();
+    alert('Bodega creada exitosamente. El propietario puede ingresar con: ' + email);
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+function limpiarModalBodega() {
+  ['nb-nombre','nb-propietario','nb-email','nb-pass','nb-telefono'].forEach(id => document.getElementById(id).value = '');
+}
+
+function cerrarModal(id) {
+  document.getElementById(id).classList.remove('show');
+}
+
+// ============================
+// ELIMINAR BODEGA
+// ============================
+let bodegaAEliminar = null;
+
+function confirmarEliminar(id, nombre) {
+  bodegaAEliminar = id;
+  document.getElementById('eliminar-nombre-bodega').textContent = nombre;
+  document.getElementById('eliminar-modal').classList.add('show');
+}
+
+async function eliminarBodega() {
+  if (!bodegaAEliminar) return;
+  const btn = document.getElementById('btn-confirmar-eliminar');
+  btn.textContent = 'Eliminando...';
+  btn.disabled = true;
+  try {
+    await db.collection('bodegas').doc(bodegaAEliminar).delete();
+    cerrarModal('eliminar-modal');
+    bodegaAEliminar = null;
+  } catch(e) {
+    alert('Error al eliminar: ' + e.message);
+  } finally {
+    btn.textContent = 'Sí, eliminar';
+    btn.disabled = false;
+  }
+}
+
+// Cerrar modales al click fuera
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if(e.target === el) el.classList.remove('show'); });
+});
+
+// Revisar bloqueo automático a las 6pm
+function revisarBloqueoAutomatico() {
+  const ahora = new Date();
+  if (ahora.getHours() >= 18) {
+    const fecha = ahora.toISOString().split('T')[0];
+    bodegasCache.forEach(b => {
+      if (b.estado === 'activo' && !b.comisionPagada?.[fecha]) {
+        db.collection('bodegas').doc(b.id).update({ estado: 'bloqueado' });
+      }
+    });
+  }
+}
+setInterval(revisarBloqueoAutomatico, 60000); // cada minuto
+</script>
+</body>
+</html>

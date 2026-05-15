@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Mi Bodega — Bodega Digital</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<style>
+  :root {
+    --verde: #1a7a4a; --verde-claro: #e8f5ee; --verde-acento: #25c26e;
+    --rojo: #c0392b; --rojo-claro: #fdecea; --bg: #f5f6f0;
+    --card: #ffffff; --texto: #1c1c1c; --muted: #6b7280; --borde: #e0e4d8;
+    --naranja: #e67e22; --naranja-claro: #fdf0e0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--texto); min-height: 100vh; }
+
+  #login-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #0f3d25 0%, #1a7a4a 60%, #25c26e 100%);
+  }
+  .login-box { background: white; border-radius: 20px; padding: 44px 36px; width:100%; max-width:400px; box-shadow: 0 24px 60px rgba(0,0,0,.18); }
+  .login-box h1 { font-family:'Syne',sans-serif; font-size:26px; font-weight:800; color:var(--verde); margin-bottom:4px; }
+  .login-box p { color:var(--muted); font-size:14px; margin-bottom:24px; }
+  .campo label { display:block; font-size:13px; font-weight:500; color:var(--muted); margin-bottom:5px; }
+  .campo input { width:100%; padding:12px 14px; border:1.5px solid var(--borde); border-radius:10px; font-size:15px; font-family:'DM Sans',sans-serif; background:#fafafa; transition:border .2s; }
+  .campo input:focus { outline:none; border-color:var(--verde); background:white; }
+  .campo { margin-bottom:14px; }
+  .btn-primary { width:100%; padding:13px; background:var(--verde); color:white; border:none; border-radius:10px; font-size:15px; font-weight:600; font-family:'DM Sans',sans-serif; cursor:pointer; margin-top:6px; }
+  .btn-primary:hover { background:#155c38; }
+  #login-error { color:var(--rojo); font-size:13px; margin-top:8px; display:none; }
+
+  #app { display:none; }
+  .topbar { background:white; border-bottom:1.5px solid var(--borde); padding:0 28px; height:60px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+  .topbar-logo { font-family:'Syne',sans-serif; font-size:18px; font-weight:800; color:var(--verde); }
+  .topbar-logo span { color:var(--verde-acento); }
+  .bodega-nombre { font-size:14px; font-weight:600; color:var(--texto); }
+  .topbar-right { display:flex; align-items:center; gap:12px; }
+
+  /* ALERTA BLOQUEADO */
+  #alerta-bloqueado {
+    display:none; background:var(--rojo); color:white;
+    text-align:center; padding:12px; font-size:14px; font-weight:600;
+  }
+  #alerta-pendiente {
+    display:none; background:var(--naranja); color:white;
+    text-align:center; padding:10px; font-size:13px;
+  }
+
+  .main { padding:28px; max-width:1100px; margin:0 auto; }
+
+  /* TABS */
+  .tabs { display:flex; gap:4px; margin-bottom:24px; background:white; border:1.5px solid var(--borde); border-radius:12px; padding:6px; width:fit-content; }
+  .tab { padding:9px 20px; border-radius:8px; font-size:14px; font-weight:500; cursor:pointer; border:none; background:none; font-family:'DM Sans',sans-serif; color:var(--muted); transition:all .15s; }
+  .tab.active { background:var(--verde); color:white; }
+
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+
+  /* STATS BODEGA */
+  .stats-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:24px; }
+  .stat-card { background:white; border:1.5px solid var(--borde); border-radius:12px; padding:18px 18px; }
+  .stat-card .label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+  .stat-card .value { font-family:'Syne',sans-serif; font-size:24px; font-weight:700; color:var(--verde); }
+
+  /* PEDIDOS */
+  .pedido-card { background:white; border:1.5px solid var(--borde); border-radius:12px; padding:18px 20px; margin-bottom:14px; }
+  .pedido-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .pedido-id { font-size:12px; color:var(--muted); }
+  .pedido-cliente { font-weight:600; font-size:15px; }
+  .pedido-hora { font-size:12px; color:var(--muted); }
+  .pedido-items { margin-bottom:12px; }
+  .pedido-item { display:flex; justify-content:space-between; font-size:14px; padding:4px 0; border-bottom:1px solid var(--borde); }
+  .pedido-item:last-child { border-bottom:none; }
+  .pedido-total { font-weight:700; color:var(--verde); font-size:16px; text-align:right; margin-bottom:12px; }
+  .pedido-acciones { display:flex; gap:8px; }
+  .btn-sm { padding:7px 14px; border-radius:7px; font-size:13px; font-weight:600; border:none; cursor:pointer; font-family:'DM Sans',sans-serif; }
+  .btn-aceptar { background:#d4edda; color:#1a5c2a; }
+  .btn-aceptar:hover { background:var(--verde); color:white; }
+  .btn-listo { background:var(--verde-claro); color:var(--verde); }
+  .btn-listo:hover { background:var(--verde); color:white; }
+  .btn-rechazar { background:var(--rojo-claro); color:var(--rojo); }
+  .btn-rechazar:hover { background:var(--rojo); color:white; }
+
+  .pill { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+  .pill.nuevo { background:#dbeafe; color:#1e40af; }
+  .pill.preparando { background:#fef3c7; color:#92400e; }
+  .pill.listo { background:#d4edda; color:#1a5c2a; }
+  .pill.entregado { background:#f3f4f6; color:#6b7280; }
+
+  /* PRODUCTOS */
+  .productos-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; }
+  .producto-card {
+    background:white; border:1.5px solid var(--borde); border-radius:12px;
+    overflow:hidden; position:relative;
+  }
+  .producto-foto { width:100%; height:150px; object-fit:cover; background:#f3f4f6; display:block; }
+  .producto-foto-placeholder { width:100%; height:150px; background:#f3f4f6; display:flex; align-items:center; justify-content:center; font-size:32px; color:var(--muted); }
+  .producto-info { padding:14px; }
+  .producto-nombre { font-weight:600; font-size:14px; margin-bottom:4px; }
+  .producto-precio { color:var(--verde); font-weight:700; font-size:16px; font-family:'Syne',sans-serif; }
+  .producto-stock { font-size:12px; color:var(--muted); margin-top:2px; }
+  .producto-acciones { display:flex; gap:6px; margin-top:10px; }
+  .btn-editar { background:#e8eaf6; color:#3949ab; flex:1; }
+  .btn-eliminar { background:var(--rojo-claro); color:var(--rojo); }
+  .badge-sin-stock { position:absolute; top:8px; right:8px; background:var(--rojo); color:white; font-size:11px; font-weight:600; padding:3px 8px; border-radius:6px; }
+  .btn-add-producto { background:var(--verde); color:white; border:none; border-radius:10px; padding:11px 20px; font-size:14px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; margin-bottom:20px; }
+
+  /* MODAL */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:999; align-items:center; justify-content:center; }
+  .modal-overlay.show { display:flex; }
+  .modal { background:white; border-radius:16px; padding:28px; width:100%; max-width:440px; max-height:90vh; overflow-y:auto; }
+  .modal h2 { font-family:'Syne',sans-serif; font-size:19px; font-weight:700; margin-bottom:18px; }
+  .modal-btns { display:flex; gap:10px; margin-top:18px; justify-content:flex-end; }
+  .btn-cancelar { background:none; border:1.5px solid var(--borde); padding:9px 16px; border-radius:8px; font-size:13px; cursor:pointer; font-family:'DM Sans',sans-serif; }
+  .btn-verde { background:var(--verde); color:white; border:none; padding:10px 18px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; }
+
+  /* FOTO PREVIEW */
+  .foto-preview { width:100%; height:160px; object-fit:cover; border-radius:8px; margin-top:8px; display:none; }
+
+  /* HISTORIAL */
+  .historial-item { background:white; border:1.5px solid var(--borde); border-radius:10px; padding:14px 16px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
+  .historial-info .fecha { font-size:12px; color:var(--muted); }
+  .historial-info .cliente { font-weight:500; font-size:14px; }
+  .historial-monto { font-family:'Syne',sans-serif; font-size:18px; font-weight:700; color:var(--verde); }
+
+  .empty-state { text-align:center; padding:48px 20px; color:var(--muted); font-size:15px; }
+  .empty-state .emoji { font-size:48px; margin-bottom:12px; }
+
+  .btn-salir { background:none; border:1.5px solid var(--borde); padding:7px 14px; border-radius:8px; font-size:13px; cursor:pointer; font-family:'DM Sans',sans-serif; color:var(--muted); }
+
+  @media (max-width:600px) {
+    .main { padding:14px; }
+    .topbar { padding:0 14px; }
+    .productos-grid { grid-template-columns:1fr 1fr; }
+    .tabs { width:100%; overflow-x:auto; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN BODEGA -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>🏪 Mi Bodega</h1>
+    <p>Panel de gestión — Bodega Digital</p>
+    <div class="campo">
+      <label>Correo electrónico</label>
+      <input type="email" id="email" placeholder="tu@correo.com"/>
+    </div>
+    <div class="campo">
+      <label>Contraseña</label>
+      <input type="password" id="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()"/>
+    </div>
+    <button class="btn-primary" onclick="login()">Ingresar</button>
+    <div id="login-error">Correo o contraseña incorrectos.</div>
+  </div>
+</div>
+
+<!-- APP BODEGA -->
+<div id="app">
+  <div id="alerta-bloqueado">⛔ Tu bodega está BLOQUEADA. Paga la comisión diaria para reactivarla. Contacta al administrador.</div>
+  <div id="alerta-pendiente">⚠️ Tienes comisión pendiente de pago. Recuerda pagar antes de las 6:00 PM o serás bloqueado.</div>
+
+  <div class="topbar">
+    <div>
+      <div class="topbar-logo">Bodega<span>Digital</span></div>
+      <div class="bodega-nombre" id="bodega-nombre-display">Mi Bodega</div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn-salir" onclick="salir()">Salir</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="stats-row">
+      <div class="stat-card"><div class="label">Ventas hoy</div><div class="value" id="stat-venta">S/ 0.00</div></div>
+      <div class="stat-card"><div class="label">Pedidos nuevos</div><div class="value" id="stat-nuevos">0</div></div>
+      <div class="stat-card"><div class="label">Productos activos</div><div class="value" id="stat-productos">0</div></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="mostrarTab('pedidos',this)">📦 Pedidos</button>
+      <button class="tab" onclick="mostrarTab('productos',this)">🥫 Productos</button>
+      <button class="tab" onclick="mostrarTab('historial',this)">📊 Historial</button>
+    </div>
+
+    <!-- PEDIDOS -->
+    <div class="tab-content active" id="tab-pedidos">
+      <div id="lista-pedidos">
+        <div class="empty-state"><div class="emoji">📭</div>Sin pedidos nuevos</div>
+      </div>
+    </div>
+
+    <!-- PRODUCTOS -->
+    <div class="tab-content" id="tab-productos">
+      <button class="btn-add-producto" onclick="abrirModalProducto()">+ Agregar producto</button>
+      <div class="productos-grid" id="productos-grid">
+        <div style="color:var(--muted);font-size:14px;grid-column:1/-1;">Cargando productos...</div>
+      </div>
+    </div>
+
+    <!-- HISTORIAL -->
+    <div class="tab-content" id="tab-historial">
+      <div id="lista-historial">
+        <div class="empty-state"><div class="emoji">📊</div>Sin ventas registradas</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PRODUCTO -->
+<div class="modal-overlay" id="modal-producto">
+  <div class="modal">
+    <h2 id="modal-prod-titulo">Agregar producto</h2>
+    <div class="campo"><label>Nombre del producto</label><input type="text" id="p-nombre" placeholder="Ej: Coca Cola 500ml"/></div>
+    <div class="campo"><label>Precio (S/)</label><input type="number" id="p-precio" placeholder="2.50" step="0.10" min="0"/></div>
+    <div class="campo"><label>Stock disponible</label><input type="number" id="p-stock" placeholder="50" min="0"/></div>
+    <div class="campo"><label>Categoría</label>
+      <select id="p-categoria" style="width:100%;padding:11px 14px;border:1.5px solid var(--borde);border-radius:10px;font-size:14px;font-family:'DM Sans',sans-serif;background:#fafafa;">
+        <option value="bebidas">🥤 Bebidas</option>
+        <option value="snacks">🍿 Snacks</option>
+        <option value="lacteos">🥛 Lácteos</option>
+        <option value="panaderia">🍞 Panadería</option>
+        <option value="limpieza">🧹 Limpieza</option>
+        <option value="frutas">🍎 Frutas y verduras</option>
+        <option value="otros">📦 Otros</option>
+      </select>
+    </div>
+    <div class="campo">
+      <label>Foto del producto</label>
+      <input type="file" id="p-foto" accept="image/*" onchange="previewFoto(this)"/>
+      <img id="foto-preview" class="foto-preview"/>
+    </div>
+    <input type="hidden" id="p-id"/>
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="cerrarModal('modal-producto')">Cancelar</button>
+      <button class="btn-verde" onclick="guardarProducto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBHlpEb3YQ7S72XF4sElaTwcYlylv_bkAM",
+  authDomain: "bodega-digital-a395d.firebaseapp.com",
+  projectId: "bodega-digital-a395d",
+  storageBucket: "bodega-digital-a395d.firebasestorage.app",
+  messagingSenderId: "859301047460",
+  appId: "1:859301047460:web:54d13e9a7f3ccaa274ca31"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const storage = firebase.storage();
+
+let bodegaId = null;
+let bodegaData = null;
+
+function login() {
+  const email = document.getElementById('email').value.trim();
+  const pass = document.getElementById('password').value;
+  auth.signInWithEmailAndPassword(email, pass)
+    .catch(() => { document.getElementById('login-error').style.display = 'block'; });
+}
+function salir() { auth.signOut(); }
+
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    bodegaId = user.uid;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    await cargarBodega();
+    escucharPedidos();
+    cargarProductos();
+    cargarHistorial();
+    verificarEstado();
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+});
+
+async function cargarBodega() {
+  const doc = await db.collection('bodegas').doc(bodegaId).get();
+  bodegaData = doc.data();
+  document.getElementById('bodega-nombre-display').textContent = bodegaData.nombre || 'Mi Bodega';
+  const ventaHoy = bodegaData.ventaHoy || 0;
+  document.getElementById('stat-venta').textContent = 'S/ ' + ventaHoy.toFixed(2);
+}
+
+function verificarEstado() {
+  db.collection('bodegas').doc(bodegaId).onSnapshot(doc => {
+    const data = doc.data();
+    bodegaData = data;
+    const hoy = new Date().toISOString().split('T')[0];
+    const bloqueado = data.estado === 'bloqueado';
+    const pagado = data.comisionPagada?.[hoy];
+    document.getElementById('alerta-bloqueado').style.display = bloqueado ? 'block' : 'none';
+    document.getElementById('alerta-pendiente').style.display = (!bloqueado && !pagado) ? 'block' : 'none';
+    document.getElementById('stat-venta').textContent = 'S/ ' + (data.ventaHoy || 0).toFixed(2);
+  });
+}
+
+// ============================
+// PEDIDOS
+// ============================
+function escucharPedidos() {
+  const hoy = new Date().toISOString().split('T')[0];
+  db.collection('pedidos')
+    .where('bodegaId', '==', bodegaId)
+    .where('fecha', '==', hoy)
+    .where('estado', 'in', ['nuevo', 'preparando', 'listo'])
+    .orderBy('creadoEn', 'desc')
+    .onSnapshot(snap => {
+      let nuevos = 0;
+      const pedidos = [];
+      snap.forEach(doc => {
+        const d = { id: doc.id, ...doc.data() };
+        pedidos.push(d);
+        if (d.estado === 'nuevo') nuevos++;
+      });
+      document.getElementById('stat-nuevos').textContent = nuevos;
+      renderPedidos(pedidos);
+    });
+}
+
+function renderPedidos(pedidos) {
+  const cont = document.getElementById('lista-pedidos');
+  if (!pedidos.length) {
+    cont.innerHTML = '<div class="empty-state"><div class="emoji">📭</div>Sin pedidos activos</div>';
+    return;
+  }
+  cont.innerHTML = pedidos.map(p => {
+    const hora = p.creadoEn ? new Date(p.creadoEn.toDate ? p.creadoEn.toDate() : p.creadoEn).toLocaleTimeString('es-PE', {hour:'2-digit',minute:'2-digit'}) : '';
+    const pillMap = { nuevo:'nuevo', preparando:'preparando', listo:'listo' };
+    const estadoLabel = { nuevo:'Nuevo', preparando:'Preparando', listo:'Listo' };
+    const items = (p.items || []).map(it => `<div class="pedido-item"><span>${it.nombre} x${it.cantidad}</span><span>S/ ${(it.precio*it.cantidad).toFixed(2)}</span></div>`).join('');
+    let acciones = '';
+    if (p.estado === 'nuevo') acciones = `<button class="btn-sm btn-aceptar" onclick="cambiarEstadoPedido('${p.id}','preparando')">Aceptar</button><button class="btn-sm btn-rechazar" onclick="cambiarEstadoPedido('${p.id}','cancelado')">Rechazar</button>`;
+    if (p.estado === 'preparando') acciones = `<button class="btn-sm btn-listo" onclick="cambiarEstadoPedido('${p.id}','listo')">Marcar listo</button>`;
+    if (p.estado === 'listo') acciones = `<button class="btn-sm btn-aceptar" onclick="cambiarEstadoPedido('${p.id}','entregado')">Entregado ✓</button>`;
+    return `<div class="pedido-card">
+      <div class="pedido-header">
+        <div><div class="pedido-cliente">${p.clienteNombre || 'Cliente'}</div><div class="pedido-id">#${p.id.slice(-6)} · ${hora}</div></div>
+        <span class="pill ${pillMap[p.estado]}">${estadoLabel[p.estado]}</span>
+      </div>
+      <div class="pedido-items">${items}</div>
+      <div class="pedido-total">Total: S/ ${(p.total||0).toFixed(2)}</div>
+      ${p.nota ? `<div style="font-size:13px;color:var(--muted);margin-bottom:10px;">📝 ${p.nota}</div>` : ''}
+      <div class="pedido-acciones">${acciones}</div>
+    </div>`;
+  }).join('');
+}
+
+async function cambiarEstadoPedido(pedidoId, nuevoEstado) {
+  const updates = { estado: nuevoEstado };
+  if (nuevoEstado === 'entregado' || nuevoEstado === 'completado') {
+    updates.estado = 'completado';
+    const pedDoc = await db.collection('pedidos').doc(pedidoId).get();
+    const total = pedDoc.data().total || 0;
+    await db.collection('bodegas').doc(bodegaId).update({
+      ventaHoy: firebase.firestore.FieldValue.increment(total)
+    });
+  }
+  await db.collection('pedidos').doc(pedidoId).update(updates);
+}
+
+// ============================
+// PRODUCTOS
+// ============================
+function cargarProductos() {
+  db.collection('bodegas').doc(bodegaId).collection('productos')
+    .onSnapshot(snap => {
+      const prods = [];
+      snap.forEach(doc => prods.push({ id: doc.id, ...doc.data() }));
+      document.getElementById('stat-productos').textContent = prods.length;
+      renderProductos(prods);
+    });
+}
+
+function renderProductos(prods) {
+  const grid = document.getElementById('productos-grid');
+  if (!prods.length) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="emoji">🥫</div>Agrega tu primer producto</div>';
+    return;
+  }
+  grid.innerHTML = prods.map(p => {
+    const img = p.fotoUrl
+      ? `<img class="producto-foto" src="${p.fotoUrl}" alt="${p.nombre}"/>`
+      : `<div class="producto-foto-placeholder">🛒</div>`;
+    const sinStock = p.stock == 0 ? `<div class="badge-sin-stock">Sin stock</div>` : '';
+    return `<div class="producto-card">
+      ${sinStock}
+      ${img}
+      <div class="producto-info">
+        <div class="producto-nombre">${p.nombre}</div>
+        <div class="producto-precio">S/ ${parseFloat(p.precio).toFixed(2)}</div>
+        <div class="producto-stock">Stock: ${p.stock} unid.</div>
+        <div class="producto-acciones">
+          <button class="btn-sm btn-editar" style="flex:1;" onclick="editarProducto('${p.id}','${p.nombre.replace(/'/g,"\\'")}',${p.precio},'${p.categoria}',${p.stock},'${p.fotoUrl||''}')">Editar</button>
+          <button class="btn-sm btn-eliminar" onclick="eliminarProducto('${p.id}')">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function abrirModalProducto() {
+  document.getElementById('modal-prod-titulo').textContent = 'Agregar producto';
+  document.getElementById('p-nombre').value = '';
+  document.getElementById('p-precio').value = '';
+  document.getElementById('p-stock').value = '';
+  document.getElementById('p-id').value = '';
+  document.getElementById('foto-preview').style.display = 'none';
+  document.getElementById('modal-producto').classList.add('show');
+}
+
+function editarProducto(id, nombre, precio, categoria, stock, fotoUrl) {
+  document.getElementById('modal-prod-titulo').textContent = 'Editar producto';
+  document.getElementById('p-id').value = id;
+  document.getElementById('p-nombre').value = nombre;
+  document.getElementById('p-precio').value = precio;
+  document.getElementById('p-stock').value = stock;
+  document.getElementById('p-categoria').value = categoria || 'otros';
+  const prev = document.getElementById('foto-preview');
+  if (fotoUrl) { prev.src = fotoUrl; prev.style.display = 'block'; } else { prev.style.display = 'none'; }
+  document.getElementById('modal-producto').classList.add('show');
+}
+
+function previewFoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const prev = document.getElementById('foto-preview');
+    prev.src = e.target.result;
+    prev.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function guardarProducto() {
+  const nombre = document.getElementById('p-nombre').value.trim();
+  const precio = parseFloat(document.getElementById('p-precio').value);
+  const stock = parseInt(document.getElementById('p-stock').value);
+  const categoria = document.getElementById('p-categoria').value;
+  const id = document.getElementById('p-id').value;
+  const fotoFile = document.getElementById('p-foto').files[0];
+  if (!nombre || isNaN(precio) || isNaN(stock)) return alert('Completa nombre, precio y stock.');
+  let fotoUrl = '';
+  if (fotoFile) {
+    const ref = storage.ref(`bodegas/${bodegaId}/productos/${Date.now()}_${fotoFile.name}`);
+    await ref.put(fotoFile);
+    fotoUrl = await ref.getDownloadURL();
+  }
+  const datos = { nombre, precio, stock, categoria };
+  if (fotoUrl) datos.fotoUrl = fotoUrl;
+  const colRef = db.collection('bodegas').doc(bodegaId).collection('productos');
+  if (id) await colRef.doc(id).update(datos);
+  else await colRef.add(datos);
+  cerrarModal('modal-producto');
+}
+
+async function eliminarProducto(id) {
+  if (!confirm('¿Eliminar este producto?')) return;
+  await db.collection('bodegas').doc(bodegaId).collection('productos').doc(id).delete();
+}
+
+// ============================
+// HISTORIAL
+// ============================
+async function cargarHistorial() {
+  const snap = await db.collection('pedidos')
+    .where('bodegaId','==',bodegaId)
+    .where('estado','==','completado')
+    .orderBy('creadoEn','desc')
+    .limit(30).get();
+  const cont = document.getElementById('lista-historial');
+  if (!snap.size) { cont.innerHTML = '<div class="empty-state"><div class="emoji">📊</div>Sin historial aún</div>'; return; }
+  cont.innerHTML = snap.docs.map(doc => {
+    const d = doc.data();
+    const fecha = d.creadoEn ? new Date(d.creadoEn.toDate ? d.creadoEn.toDate() : d.creadoEn).toLocaleDateString('es-PE') : d.fecha;
+    return `<div class="historial-item">
+      <div class="historial-info">
+        <div class="fecha">${fecha}</div>
+        <div class="cliente">${d.clienteNombre || 'Cliente'} · ${(d.items||[]).length} productos</div>
+      </div>
+      <div class="historial-monto">S/ ${(d.total||0).toFixed(2)}</div>
+    </div>`;
+  }).join('');
+}
+
+// UTILS
+function mostrarTab(tab, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  btn.classList.add('active');
+  if (tab === 'historial') cargarHistorial();
+}
+function cerrarModal(id) { document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if(e.target===el) el.classList.remove('show'); });
+});
+</script>
+</body>
+</html>

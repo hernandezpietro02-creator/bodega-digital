@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Mi Bodega — Bodega Digital</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+<style>
+  :root {
+    --verde: #1a7a4a; --verde-claro: #e8f5ee; --verde-acento: #25c26e;
+    --rojo: #c0392b; --rojo-claro: #fdecea; --bg: #f5f6f0;
+    --card: #ffffff; --texto: #1c1c1c; --muted: #6b7280; --borde: #e0e4d8;
+    --naranja: #e67e22; --naranja-claro: #fdf0e0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--texto); min-height: 100vh; }
+
+  #login-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #0f3d25 0%, #1a7a4a 60%, #25c26e 100%);
+  }
+  #loading-inicial {
+    position: fixed; inset: 0; background: linear-gradient(135deg, #0f3d25 0%, #1a7a4a 60%, #25c26e 100%);
+    display: flex; align-items: center; justify-content: center; z-index: 9999;
+    flex-direction: column; gap: 16px; color: white;
+    font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700;
+  }
+  .spinner {
+    width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.3);
+    border-top-color: white; border-radius: 50%; animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .login-box { background: white; border-radius: 20px; padding: 44px 36px; width:100%; max-width:400px; box-shadow: 0 24px 60px rgba(0,0,0,.18); }
+  .login-box h1 { font-family:'Syne',sans-serif; font-size:26px; font-weight:800; color:var(--verde); margin-bottom:4px; }
+  .login-box p { color:var(--muted); font-size:14px; margin-bottom:24px; }
+  .campo label { display:block; font-size:13px; font-weight:500; color:var(--muted); margin-bottom:5px; }
+  .campo input { width:100%; padding:12px 14px; border:1.5px solid var(--borde); border-radius:10px; font-size:15px; font-family:'DM Sans',sans-serif; background:#fafafa; transition:border .2s; }
+  .campo input:focus { outline:none; border-color:var(--verde); background:white; }
+  .campo { margin-bottom:14px; }
+  .btn-primary { width:100%; padding:13px; background:var(--verde); color:white; border:none; border-radius:10px; font-size:15px; font-weight:600; font-family:'DM Sans',sans-serif; cursor:pointer; margin-top:6px; }
+  .btn-primary:hover { background:#155c38; }
+  #login-error { color:var(--rojo); font-size:13px; margin-top:8px; display:none; }
+
+  #app { display:none; }
+  .topbar { background:white; border-bottom:1.5px solid var(--borde); padding:0 28px; height:60px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+  .topbar-logo { font-family:'Syne',sans-serif; font-size:18px; font-weight:800; color:var(--verde); }
+  .topbar-logo span { color:var(--verde-acento); }
+  .bodega-nombre { font-size:14px; font-weight:600; color:var(--texto); }
+  .topbar-right { display:flex; align-items:center; gap:12px; }
+
+  /* ALERTA BLOQUEADO */
+  #alerta-bloqueado {
+    display:none; background:var(--rojo); color:white;
+    text-align:center; padding:12px; font-size:14px; font-weight:600;
+  }
+  #alerta-pendiente {
+    display:none; background:#f97316; color:white;
+    text-align:center; padding:11px; font-size:13px; font-weight:600;
+  }
+
+  .main { padding:28px; max-width:1100px; margin:0 auto; }
+
+  /* TABS */
+  .tabs { display:flex; gap:4px; margin-bottom:24px; background:white; border:1.5px solid var(--borde); border-radius:12px; padding:6px; width:fit-content; }
+  .tab { padding:9px 20px; border-radius:8px; font-size:14px; font-weight:500; cursor:pointer; border:none; background:none; font-family:'DM Sans',sans-serif; color:var(--muted); transition:all .15s; }
+  .tab.active { background:var(--verde); color:white; }
+
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+
+  /* STATS BODEGA */
+  .stats-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:24px; }
+  .stat-card { background:white; border:1.5px solid var(--borde); border-radius:12px; padding:18px 18px; }
+  .stat-card .label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+  .stat-card .value { font-family:'Syne',sans-serif; font-size:24px; font-weight:700; color:var(--verde); }
+
+  /* PEDIDOS */
+  .pedido-card { background:white; border:1.5px solid var(--borde); border-radius:12px; padding:18px 20px; margin-bottom:14px; }
+  .pedido-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .pedido-id { font-size:12px; color:var(--muted); }
+  .pedido-cliente { font-weight:600; font-size:15px; }
+  .pedido-hora { font-size:12px; color:var(--muted); }
+  .pedido-items { margin-bottom:12px; }
+  .pedido-item { display:flex; justify-content:space-between; font-size:14px; padding:4px 0; border-bottom:1px solid var(--borde); }
+  .pedido-item:last-child { border-bottom:none; }
+  .pedido-total { font-weight:700; color:var(--verde); font-size:16px; text-align:right; margin-bottom:12px; }
+  .pedido-acciones { display:flex; gap:8px; }
+  .btn-sm { padding:7px 14px; border-radius:7px; font-size:13px; font-weight:600; border:none; cursor:pointer; font-family:'DM Sans',sans-serif; }
+  .btn-aceptar { background:#d4edda; color:#1a5c2a; }
+  .btn-aceptar:hover { background:var(--verde); color:white; }
+  .btn-listo { background:var(--verde-claro); color:var(--verde); }
+  .btn-listo:hover { background:var(--verde); color:white; }
+  .btn-rechazar { background:var(--rojo-claro); color:var(--rojo); }
+  .btn-rechazar:hover { background:var(--rojo); color:white; }
+
+  .pill { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+  .pill.nuevo { background:#dbeafe; color:#1e40af; }
+  .pill.preparando { background:#fef3c7; color:#92400e; }
+  .pill.listo { background:#d4edda; color:#1a5c2a; }
+  .pill.entregado { background:#f3f4f6; color:#6b7280; }
+
+  /* PRODUCTOS */
+  .productos-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; }
+  .producto-card {
+    background:white; border:1.5px solid var(--borde); border-radius:12px;
+    overflow:hidden; position:relative;
+  }
+  .producto-foto { width:100%; height:150px; object-fit:cover; background:#f3f4f6; display:block; }
+  .producto-foto-placeholder { width:100%; height:150px; background:#f3f4f6; display:flex; align-items:center; justify-content:center; font-size:32px; color:var(--muted); }
+  .producto-info { padding:14px; }
+  .producto-nombre { font-weight:600; font-size:14px; margin-bottom:4px; }
+  .producto-precio { color:var(--verde); font-weight:700; font-size:16px; font-family:'Syne',sans-serif; }
+  .producto-stock { font-size:12px; color:var(--muted); margin-top:2px; }
+  .producto-acciones { display:flex; gap:6px; margin-top:10px; }
+  .btn-editar { background:#e8eaf6; color:#3949ab; flex:1; }
+  .btn-eliminar { background:var(--rojo-claro); color:var(--rojo); }
+  .badge-sin-stock { position:absolute; top:8px; right:8px; background:var(--rojo); color:white; font-size:11px; font-weight:600; padding:3px 8px; border-radius:6px; }
+  .btn-add-producto { background:var(--verde); color:white; border:none; border-radius:10px; padding:11px 20px; font-size:14px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; margin-bottom:20px; }
+
+  /* MODAL */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:999; align-items:center; justify-content:center; }
+  .modal-overlay.show { display:flex; }
+  .modal { background:white; border-radius:16px; padding:28px; width:100%; max-width:440px; max-height:90vh; overflow-y:auto; }
+  .modal h2 { font-family:'Syne',sans-serif; font-size:19px; font-weight:700; margin-bottom:18px; }
+  .modal-btns { display:flex; gap:10px; margin-top:18px; justify-content:flex-end; }
+  .btn-cancelar { background:none; border:1.5px solid var(--borde); padding:9px 16px; border-radius:8px; font-size:13px; cursor:pointer; font-family:'DM Sans',sans-serif; }
+  .btn-verde { background:var(--verde); color:white; border:none; padding:10px 18px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; }
+
+  /* INVENTARIO */
+  .inv-row { background:white; border:1.5px solid var(--borde); border-radius:10px; padding:13px 16px; margin-bottom:8px; display:grid; grid-template-columns:auto 1fr auto auto; align-items:center; gap:12px; transition: border-color .2s; }
+  .inv-row.salida { border-left:4px solid var(--rojo); }
+  .inv-row.entrada { border-left:4px solid var(--verde); }
+  .inv-tipo { width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; position:relative; }
+  .inv-tipo.entrada { background:#d4edda; }
+  .inv-tipo.salida { background:var(--rojo-claro); }
+  .inv-tipo .inv-dot { width:10px; height:10px; border-radius:50%; position:absolute; top:2px; right:2px; border:2px solid white; }
+  .inv-tipo.entrada .inv-dot { background: var(--verde); }
+  .inv-tipo.salida .inv-dot { background: var(--rojo); }
+  .inv-tipo.salida.stock-bajo .inv-dot { animation: pulso-rojo 1s infinite; }
+  @keyframes pulso-rojo { 0%,100% { box-shadow: 0 0 0 0 rgba(192,57,43,.4); } 50% { box-shadow: 0 0 0 5px rgba(192,57,43,0); } }
+  .inv-info .prod { font-weight:600; font-size:14px; }
+  .inv-info .detalle { font-size:12px; color:var(--muted); margin-top:2px; }
+  .inv-cant { font-family:'Syne',sans-serif; font-size:17px; font-weight:700; }
+  .inv-cant.entrada { color:var(--verde); }
+  .inv-cant.salida { color:var(--rojo); }
+  .inv-stock { font-size:12px; font-weight:600; text-align:right; white-space:nowrap; padding:3px 8px; border-radius:6px; }
+  .inv-stock.stock-ok { color: var(--verde); background: #e8f5ee; }
+  .inv-stock.stock-bajo { color: #e67e22; background: #fef3e2; }
+  .inv-stock.stock-cero { color: var(--rojo); background: var(--rojo-claro); }
+
+  .btn-verde:disabled { background:#7ab89a; cursor:not-allowed; }
+
+  /* FOTO PREVIEW */
+  .foto-preview { width:100%; height:160px; object-fit:cover; border-radius:8px; margin-top:8px; display:none; }
+
+  /* HISTORIAL */
+  .historial-item { background:white; border:1.5px solid var(--borde); border-radius:10px; padding:14px 16px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
+  .historial-info .fecha { font-size:12px; color:var(--muted); }
+  .historial-info .cliente { font-weight:500; font-size:14px; }
+  .historial-monto { font-family:'Syne',sans-serif; font-size:18px; font-weight:700; color:var(--verde); }
+
+  .empty-state { text-align:center; padding:48px 20px; color:var(--muted); font-size:15px; }
+  .empty-state .emoji { font-size:48px; margin-bottom:12px; }
+
+  .btn-salir { background:none; border:1.5px solid var(--borde); padding:7px 14px; border-radius:8px; font-size:13px; cursor:pointer; font-family:'DM Sans',sans-serif; color:var(--muted); }
+
+  
+  /* MENSAJES BODEGA */
+  .btn-mensajes {
+    position: relative;
+    background: var(--verde-claro); color: var(--verde);
+    border: 1.5px solid var(--verde); padding: 7px 14px;
+    border-radius: 8px; font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s;
+  }
+  .btn-mensajes:hover { background: var(--verde); color: white; }
+  .badge-msg {
+    position: absolute; top: -6px; right: -6px;
+    background: var(--rojo); color: white;
+    font-size: 10px; font-weight: 700;
+    width: 18px; height: 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    display: none;
+  }
+  .badge-msg.visible { display: flex; }
+  #modal-mensajes .modal { max-width: 500px; max-height: 85vh; display: flex; flex-direction: column; }
+  .mensajes-lista {
+    flex: 1; overflow-y: auto; max-height: 300px;
+    margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;
+    padding: 4px 0;
+  }
+  .msg-burbuja {
+    padding: 10px 14px; border-radius: 12px;
+    font-size: 13px; line-height: 1.5; max-width: 88%;
+  }
+  .msg-admin  { background: var(--verde); color: white; align-self: flex-start; border-bottom-left-radius: 4px; }
+  .msg-bodega { background: #e8eaf6; color: var(--texto); align-self: flex-end; border-bottom-right-radius: 4px; }
+  .msg-meta { font-size: 11px; opacity: 0.7; margin-top: 4px; }
+  .msg-input-row { display: flex; gap: 8px; }
+  .msg-input-row textarea {
+    flex: 1; padding: 10px 12px; border: 1.5px solid var(--borde);
+    border-radius: 10px; font-family: 'DM Sans', sans-serif;
+    font-size: 14px; resize: none; height: 60px; transition: border 0.2s;
+  }
+  .msg-input-row textarea:focus { outline: none; border-color: var(--verde); }
+
+  
+  /* BANNER NOTIFICACIONES */
+  #banner-notif {
+    display: none;
+    background: #1a56db; color: white;
+    padding: 12px 20px; font-size: 13px; font-weight: 500;
+    align-items: center; justify-content: space-between; gap: 12px;
+    flex-wrap: wrap;
+  }
+  #banner-notif.show { display: flex; }
+  #banner-notif .banner-btns { display: flex; gap: 8px; }
+  .btn-notif-si {
+    background: white; color: #1a56db;
+    border: none; padding: 7px 14px; border-radius: 7px;
+    font-size: 13px; font-weight: 700; cursor: pointer; font-family: 'DM Sans', sans-serif;
+  }
+  .btn-notif-no {
+    background: rgba(255,255,255,0.2); color: white;
+    border: 1.5px solid rgba(255,255,255,0.4); padding: 7px 14px;
+    border-radius: 7px; font-size: 13px; cursor: pointer; font-family: 'DM Sans', sans-serif;
+  }
+
+  @media (max-width:600px) {
+    .main { padding:14px; }
+    .topbar { padding:0 14px; }
+    .productos-grid { grid-template-columns:1fr 1fr; }
+    .tabs { width:100%; overflow-x:auto; }
+  }
+</style>
+</head>
+<body>
+
+<!-- PANTALLA DE CARGA INICIAL -->
+<div id="loading-inicial" style="display:none;">
+  <div class="spinner"></div>
+  <span>BodegaDigital</span>
+</div>
+
+<!-- BANNER DESBLOQUEO DE VOZ (Chrome Android requiere interacción del usuario) -->
+<div id="banner-voz" style="display:none;background:#7c3aed;color:white;padding:14px 20px;font-size:14px;font-weight:600;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+  <span>🔊 Toca aquí una vez para activar las alertas de voz</span>
+  <button onclick="desbloquearVoz()" style="background:white;color:#7c3aed;border:none;padding:8px 18px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">
+    Activar voz
+  </button>
+</div>
+
+<!-- BANNER PERMISO NOTIFICACIONES -->
+<div id="banner-notif">
+  <span>🔔 ¿Activar notificaciones para recibir alertas de nuevos pedidos en tu celular?</span>
+  <div class="banner-btns">
+    <button class="btn-notif-si" onclick="activarNotificaciones()">Sí, activar</button>
+    <button class="btn-notif-no" onclick="cerrarBanner()">Ahora no</button>
+  </div>
+</div>
+
+<!-- LOGIN BODEGA -->
+<div id="login-screen" style="display:flex;">
+  <div class="login-box">
+    <h1>🏪 Mi Bodega</h1>
+    <p>Panel de gestión — Bodega Digital</p>
+    <div class="campo">
+      <label>Correo electrónico</label>
+      <input type="email" id="email" placeholder="tu@correo.com"/>
+    </div>
+    <div class="campo">
+      <label>Contraseña</label>
+      <input type="password" id="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()"/>
+    </div>
+    <button class="btn-primary" id="btn-login" onclick="login()">Ingresar</button>
+    <div id="login-error">Correo o contraseña incorrectos.</div>
+  </div>
+</div>
+
+<!-- APP BODEGA -->
+<div id="app" style="display:none;">
+  <div id="alerta-bloqueado">⛔ Tu bodega está BLOQUEADA. Paga la comisión diaria para reactivarla. Contacta al administrador.</div>
+  <div id="alerta-pendiente">💰 Recuerde pagar la comisión, o serás bloqueado.</div>
+
+  <div class="topbar">
+    <div>
+      <div class="topbar-logo">Bodega<span>Digital</span></div>
+      <div class="bodega-nombre" id="bodega-nombre-display">Mi Bodega</div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn-mensajes" onclick="abrirMensajesBodega()" id="btn-abrir-mensajes">
+        💬 Mensajes
+        <span class="badge-msg" id="badge-msg-nuevo">!</span>
+      </button>
+      <button class="btn-salir" onclick="salir()">Salir</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="stats-row">
+      <div class="stat-card"><div class="label">Ventas hoy</div><div class="value" id="stat-venta">S/ 0.00</div></div>
+      <div class="stat-card"><div class="label">Pedidos nuevos</div><div class="value" id="stat-nuevos">0</div></div>
+      <div class="stat-card"><div class="label">Productos activos</div><div class="value" id="stat-productos">0</div></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="mostrarTab('pedidos',this)">📦 Pedidos</button>
+      <button class="tab" onclick="mostrarTab('productos',this)">🥫 Productos</button>
+      <button class="tab" onclick="mostrarTab('inventario',this)">📋 Inventario</button>
+      <button class="tab" onclick="mostrarTab('historial',this)">📊 Historial</button>
+    </div>
+
+    <!-- PEDIDOS -->
+    <div class="tab-content active" id="tab-pedidos">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px;">
+        <label style="font-size:13px;font-weight:600;color:var(--muted);">📅 Filtrar por día:</label>
+        <input type="date" id="filtro-fecha-pedido"
+          style="padding:9px 14px;border:1.5px solid var(--borde);border-radius:10px;font-size:14px;font-family:'DM Sans',sans-serif;background:white;cursor:pointer;"
+          onchange="aplicarFiltroPedidos()"/>
+        <button onclick="resetearFiltroPedidos()"
+          style="padding:9px 14px;background:var(--verde-claro);color:var(--verde);border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">
+          Hoy
+        </button>
+        <span id="label-fecha-pedido" style="font-size:13px;color:var(--muted);"></span>
+      </div>
+      <div id="lista-pedidos">
+        <div class="empty-state"><div class="emoji">📭</div>Sin pedidos nuevos</div>
+      </div>
+    </div>
+
+    <!-- PRODUCTOS -->
+    <div class="tab-content" id="tab-productos">
+      <button class="btn-add-producto" onclick="abrirModalProducto()">+ Agregar producto</button>
+      <div class="productos-grid" id="productos-grid"></div>
+    </div>
+
+    <!-- HISTORIAL -->
+    <div class="tab-content" id="tab-historial">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+        <input type="date" id="filtro-fecha-historial"
+          style="padding:9px 14px;border:1.5px solid var(--borde);border-radius:10px;font-size:14px;font-family:'DM Sans',sans-serif;background:white;"
+          onchange="cargarHistorial()"/>
+        <button onclick="resetearFiltroHistorial()"
+          style="padding:9px 14px;border:1.5px solid var(--borde);border-radius:10px;font-size:13px;font-weight:600;background:white;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--muted);">
+          Hoy
+        </button>
+        <span id="historial-resumen" style="font-size:13px;color:var(--muted);margin-left:4px;"></span>
+      </div>
+      <div id="lista-historial">
+        <div class="empty-state"><div class="emoji">📊</div>Sin ventas registradas</div>
+      </div>
+    </div>
+
+    <!-- INVENTARIO -->
+    <div class="tab-content" id="tab-inventario">
+      <div style="margin-bottom:18px;">
+        <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;">Movimientos de inventario</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Entradas y salidas por producto</div>
+        <!-- Filtro + botón limpiar en la misma fila -->
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <select id="filtro-inventario" onchange="filtrarInventario()" style="padding:10px 14px;border:1.5px solid var(--borde);border-radius:10px;font-size:14px;font-family:'DM Sans',sans-serif;background:white;min-width:220px;">
+            <option value="">Todos los productos</option>
+          </select>
+          <button id="btn-limpiar-inv" onclick="limpiarInventario()" style="background:var(--rojo-claro);color:var(--rojo);border:none;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">🗑 Limpiar historial</button>
+        </div>
+      </div>
+      <div id="lista-inventario">
+        <div class="empty-state"><div class="emoji">📋</div>Sin movimientos aún</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MENSAJES BODEGA -->
+<div class="modal-overlay" id="modal-mensajes">
+  <div class="modal">
+    <h2>💬 Mensajes del Admin</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px;">Comunicación directa con el administrador.</p>
+    <div class="mensajes-lista" id="mensajes-bodega-lista">
+      <div style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">Cargando mensajes...</div>
+    </div>
+    <div class="msg-input-row">
+      <textarea id="msg-bodega-texto" placeholder="Escribe una respuesta al admin..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMensajeBodega();}"></textarea>
+      <button class="btn-verde" style="padding:10px 16px;font-size:13px;align-self:flex-end;" onclick="enviarMensajeBodega()">Enviar</button>
+    </div>
+    <div class="modal-btns" style="justify-content:center;margin-top:12px;">
+      <button class="btn-cancelar" onclick="cerrarModal('modal-mensajes')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PRODUCTO -->
+<div class="modal-overlay" id="modal-producto">
+  <div class="modal">
+    <h2 id="modal-prod-titulo">Agregar producto</h2>
+    <div class="campo"><label>Nombre del producto</label><input type="text" id="p-nombre" placeholder="Ej: Coca Cola 500ml"/></div>
+    <div class="campo"><label>Precio (S/)</label><input type="number" id="p-precio" placeholder="2.50" step="0.10" min="0"/></div>
+    <div class="campo"><label>Stock inicial</label><input type="number" id="p-stock" placeholder="50" min="0"/></div>
+    <div class="campo"><label>Categoría</label>
+      <select id="p-categoria" style="width:100%;padding:11px 14px;border:1.5px solid var(--borde);border-radius:10px;font-size:14px;font-family:'DM Sans',sans-serif;background:#fafafa;">
+        <option value="bebidas">🥤 Bebidas</option>
+        <option value="snacks">🍿 Snacks</option>
+        <option value="lacteos">🥛 Lácteos</option>
+        <option value="panaderia">🍞 Panadería</option>
+        <option value="limpieza">🧹 Limpieza</option>
+        <option value="frutas">🍎 Frutas y verduras</option>
+        <option value="otros">📦 Otros</option>
+      </select>
+    </div>
+    <input type="hidden" id="p-foto"/>
+    <input type="hidden" id="p-foto-url-actual"/>
+    <img id="foto-preview" style="display:none;" alt=""/>
+    <input type="hidden" id="p-id"/>
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="cerrarModal('modal-producto')">Cancelar</button>
+      <button class="btn-verde" onclick="guardarProducto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBHlpEb3YQ7S72XF4sElaTwcYlylv_bkAM",
+  authDomain: "bodega-digital-a395d.firebaseapp.com",
+  projectId: "bodega-digital-a395d",
+  storageBucket: "bodega-digital-a395d.firebasestorage.app",
+  messagingSenderId: "859301047460",
+  appId: "1:859301047460:web:54d13e9a7f3ccaa274ca31"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+const storage = firebase.storage();
+
+// SESSION persistence: cada pestaña mantiene su propia sesión independiente.
+// Esto evita que el login del admin en otra pestaña afecte al panel de bodega.
+const _persistenceReady = auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(function(){});
+
+let bodegaId = null;
+let bodegaData = null;
+
+// ── Estado de sesión ──────────────────────────────────────────
+let _appIniciada = false;   // evita doble ejecución si onAuthStateChanged dispara 2 veces
+let _saliendo    = false;   // evita loop cuando nosotros mismos llamamos signOut
+
+const ADMIN_EMAIL = 'hernandezpietro02@gmail.com'; // admin — no puede entrar aquí
+
+function login() {
+  const email  = document.getElementById('email').value.trim().toLowerCase();
+  const pass   = document.getElementById('password').value;
+  const errEl  = document.getElementById('login-error');
+  const btn    = document.getElementById('btn-login');
+  errEl.style.display = 'none';
+
+  // Bloquear correo admin en panel de bodega
+  if (email === ADMIN_EMAIL) {
+    errEl.textContent = '⛔ Esta cuenta es de administrador. Ingresa desde admin.html.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.textContent = 'Ingresando...';
+  btn.disabled = true;
+  _persistenceReady.then(() => {
+    auth.signInWithEmailAndPassword(email, pass)
+      .catch(e => {
+        const msgs = {
+          'auth/user-not-found'     : 'No existe una cuenta con ese correo.',
+          'auth/wrong-password'     : 'Contraseña incorrecta.',
+          'auth/invalid-email'      : 'El formato del correo no es válido.',
+          'auth/too-many-requests'  : 'Demasiados intentos. Espera unos minutos.',
+          'auth/network-request-failed': 'Sin conexión. Verifica tu internet.',
+          'auth/invalid-credential' : 'Correo o contraseña incorrectos.',
+        };
+        errEl.textContent = msgs[e.code] || ('Error: ' + e.message);
+        errEl.style.display = 'block';
+      })
+      .finally(() => { btn.textContent = 'Ingresar'; btn.disabled = false; });
+  });
+}
+
+function salir() {
+  _saliendo    = true;
+  _appIniciada = false;
+  auth.signOut().finally(() => {
+    _saliendo = false;
+    // Con SESSION persistence hay que mostrar el login manualmente
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('loading-inicial').style.display = 'none';
+    mostrarLogin();
+  });
+}
+
+function mostrarLogin(msg) {
+  document.getElementById('loading-inicial').style.display = 'none';
+  document.getElementById('app').style.display  = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  if (msg) {
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = msg;
+    errEl.style.display = 'block';
+  } else {
+    document.getElementById('login-error').style.display = 'none';
+  }
+}
+
+auth.onAuthStateChanged(async user => {
+  if (_saliendo) return;   // lo iniciamos nosotros — ignorar
+
+  // ── Sin sesión ────────────────────────────────────────────
+  if (!user) {
+    _appIniciada = false;
+    mostrarLogin();
+    return;
+  }
+
+  // ── Es el admin — no puede usar este panel ────────────────
+  if (user.email.toLowerCase() === ADMIN_EMAIL) {
+    _saliendo = true;
+    await auth.signOut().catch(() => {});
+    _saliendo = false;
+    _appIniciada = false;
+    mostrarLogin('⛔ Esta cuenta es de administrador. Ingresa desde admin.html.');
+    return;
+  }
+
+  // ── Ya está corriendo — ignorar disparos extra ────────────
+  if (_appIniciada) return;
+  _appIniciada = true;
+
+  bodegaId = user.uid;
+
+  // Ocultar login, mostrar loader mientras verificamos
+  document.getElementById('login-screen').style.display  = 'none';
+  document.getElementById('login-error').style.display   = 'none';
+  document.getElementById('loading-inicial').style.display = 'flex';
+
+  // Verificar que existe el documento de bodega
+  let doc;
+  try {
+    doc = await db.collection('bodegas').doc(bodegaId).get();
+  } catch (err) {
+    _appIniciada = false;
+    mostrarLogin('Error de conexión (' + (err.code || err.message) + '). Intenta de nuevo.');
+    return;
+  }
+
+  if (!doc.exists) {
+    _appIniciada = false;
+    _saliendo = true;
+    await auth.signOut().catch(() => {});
+    _saliendo = false;
+    mostrarLogin('⚠️ Esta cuenta no tiene bodega asignada. Contacta al administrador.');
+    return;
+  }
+
+  // Todo OK — mostrar app
+  document.getElementById('loading-inicial').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+
+  bodegaData = doc.data();
+  const elNombre = document.getElementById('bodega-nombre-display');
+  const elVenta  = document.getElementById('stat-venta');
+  if (elNombre) elNombre.textContent = bodegaData.nombre || 'Mi Bodega';
+  if (elVenta)  elVenta.textContent  = 'S/ ' + (bodegaData.ventaHoy || 0).toFixed(2);
+
+  inicializarFiltroPedidos();
+  escucharPedidos();
+  cargarProductos();
+  cargarHistorial();
+  cargarInventario();
+  verificarEstado();
+  escucharBadgeMensajes();
+  await iniciarFCM();
+  escucharMensajesFCM();
+  mostrarBannerVoz();
+});
+
+async function cargarBodega() {
+  if (!bodegaId) return;
+  try {
+    const doc = await db.collection('bodegas').doc(bodegaId).get();
+    if (!doc.exists) return;
+    bodegaData = doc.data();
+    const el1 = document.getElementById('bodega-nombre-display');
+    const el2 = document.getElementById('stat-venta');
+    if (el1) el1.textContent = bodegaData.nombre || 'Mi Bodega';
+    if (el2) el2.textContent = 'S/ ' + (bodegaData.ventaHoy || 0).toFixed(2);
+  } catch (err) {
+    console.warn('cargarBodega error:', err.message);
+  }
+}
+
+
+function verificarEstado() {
+  db.collection('bodegas').doc(bodegaId).onSnapshot(doc => {
+    const data = doc.data();
+    if (!data) return;
+    bodegaData = data;
+    const hoy = fechaHoyLima();
+    const bloqueado = data.estado === 'bloqueado';
+    const pagado = data.comisionPagada?.[hoy];
+    const elB = document.getElementById('alerta-bloqueado');
+    const elP = document.getElementById('alerta-pendiente');
+    const elV = document.getElementById('stat-venta');
+    if (elB) elB.style.display = bloqueado ? 'block' : 'none';
+    if (elP) elP.style.display = (!bloqueado && !pagado) ? 'block' : 'none';
+    if (elV) elV.textContent = 'S/ ' + (data.ventaHoy || 0).toFixed(2);
+  });
+}
+
+// ============================
+// PEDIDOS
+// ============================
+
+// ✅ Siempre usar hora de Lima, no UTC
+function fechaHoyLima() {
+  return new Date().toLocaleString('sv', { timeZone: 'America/Lima' }).split(' ')[0];
+}
+
+let fechaFiltroPedidos = fechaHoyLima();
+let todosLosPedidosActivos = [];
+
+function inicializarFiltroPedidos() {
+  const input = document.getElementById('filtro-fecha-pedido');
+  input.value = fechaFiltroPedidos;
+  actualizarLabelFecha();
+}
+
+function aplicarFiltroPedidos() {
+  const input = document.getElementById('filtro-fecha-pedido');
+  fechaFiltroPedidos = input.value || fechaHoyLima();
+  actualizarLabelFecha();
+  escucharPedidos();
+}
+
+function resetearFiltroPedidos() {
+  fechaFiltroPedidos = fechaHoyLima();
+  document.getElementById('filtro-fecha-pedido').value = fechaFiltroPedidos;
+  actualizarLabelFecha();
+  escucharPedidos();
+}
+
+function actualizarLabelFecha() {
+  const hoy = fechaHoyLima();
+  const label = document.getElementById('label-fecha-pedido');
+  if (fechaFiltroPedidos === hoy) {
+    label.textContent = '— Mostrando pedidos de hoy';
+  } else {
+    const [y,m,d] = fechaFiltroPedidos.split('-');
+    label.textContent = `— Mostrando pedidos del ${d}/${m}/${y}`;
+  }
+}
+
+// ============================
+// VOZ — MENSAJE DE NUEVO PEDIDO
+// ============================
+
+let vozDesbloqueada = false;
+
+// Chrome Android bloquea speechSynthesis hasta que el usuario toca la pantalla.
+// Solucion: reproducir un utterance silencioso al primer toque para desbloquear.
+function desbloquearVoz() {
+  const silencio = new SpeechSynthesisUtterance(' ');
+  silencio.volume = 0;
+  silencio.onend = () => {
+    vozDesbloqueada = true;
+    document.getElementById('banner-voz').style.display = 'none';
+    mostrarToast('🔊 Alertas de voz activadas');
+  };
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(silencio);
+}
+
+function mostrarBannerVoz() {
+  if ('speechSynthesis' in window && !vozDesbloqueada) {
+    document.getElementById('banner-voz').style.display = 'flex';
+  }
+}
+
+// Guarda los IDs de pedidos ya anunciados para no repetir al recargar
+const pedidosAnunciados = new Set();
+let primerasCargaPedidos = true; // silenciar en la carga inicial
+
+function hablarPedido(clienteNombre, total) {
+  if (!('speechSynthesis' in window)) return;
+  if (!vozDesbloqueada) {
+    // Recordar al bodeguero que toque el botón de voz
+    document.getElementById('banner-voz').style.display = 'flex';
+    return;
+  }
+  window.speechSynthesis.cancel();
+
+  let repeticiones = 0;
+  const texto = `Hey, tienes un nuevo pedido en tu Bodega Digital. ¡Revísalo ahora!`;
+
+  function hablar() {
+    if (repeticiones >= 3) return;
+    repeticiones++;
+    const msg = new SpeechSynthesisUtterance(texto);
+    msg.lang = 'es-PE';
+    msg.rate = 0.95;
+    msg.pitch = 1;
+    msg.volume = 1;
+    msg.onend = () => setTimeout(hablar, 1200);
+    window.speechSynthesis.speak(msg);
+  }
+
+  hablar();
+}
+
+let unsubscribePedidos = null;
+function escucharPedidos() {
+  if (unsubscribePedidos) { unsubscribePedidos(); unsubscribePedidos = null; }
+  primerasCargaPedidos = true; // resetear al cambiar de fecha
+  const fecha = fechaFiltroPedidos;
+  // Solo filtramos por bodegaId para evitar índice compuesto; fecha y estado se filtran en memoria
+  unsubscribePedidos = db.collection('pedidos')
+    .where('bodegaId', '==', bodegaId)
+    .onSnapshot(snap => {
+      let nuevos = 0;
+      const pedidos = [];
+      snap.forEach(doc => {
+        const d = { id: doc.id, ...doc.data() };
+        // Filtrar por fecha y estados activos en el cliente
+        if (d.fecha === fecha && ['nuevo', 'preparando', 'listo'].includes(d.estado)) {
+          pedidos.push(d);
+          if (d.estado === 'nuevo') {
+            nuevos++;
+            // ✅ Hablar solo si es un pedido nuevo real (no la carga inicial de la página)
+            if (!primerasCargaPedidos && !pedidosAnunciados.has(d.id)) {
+              pedidosAnunciados.add(d.id);
+              hablarPedido(d.clienteNombre || 'un cliente', d.total || 0);
+            } else {
+              // En la carga inicial solo registramos los IDs, no hablamos
+              pedidosAnunciados.add(d.id);
+            }
+          }
+        }
+      });
+
+      // Después del primer snapshot ya sabemos cuáles existían antes
+      primerasCargaPedidos = false;
+
+      // Ordenar por fecha de creación descendente
+      pedidos.sort((a, b) => {
+        const ta = a.creadoEn?.toDate ? a.creadoEn.toDate() : new Date(a.creadoEn || 0);
+        const tb = b.creadoEn?.toDate ? b.creadoEn.toDate() : new Date(b.creadoEn || 0);
+        return tb - ta;
+      });
+      document.getElementById('stat-nuevos').textContent = nuevos;
+      renderPedidos(pedidos);
+    }, err => {
+      console.error('Error al escuchar pedidos:', err);
+      document.getElementById('lista-pedidos').innerHTML = '<div style="color:var(--rojo);padding:16px;background:var(--rojo-claro);border-radius:10px;">⚠️ Error al cargar pedidos: ' + err.message + '</div>';
+    });
+}
+
+function renderPedidos(pedidos) {
+  const cont = document.getElementById('lista-pedidos');
+  if (!pedidos.length) {
+    cont.innerHTML = '<div class="empty-state"><div class="emoji">📭</div>Sin pedidos activos</div>';
+    return;
+  }
+  cont.innerHTML = pedidos.map(p => {
+    const hora = p.creadoEn ? new Date(p.creadoEn.toDate ? p.creadoEn.toDate() : p.creadoEn).toLocaleTimeString('es-PE', {hour:'2-digit',minute:'2-digit'}) : '';
+    const pillMap = { nuevo:'nuevo', preparando:'preparando', listo:'listo' };
+    const estadoLabel = { nuevo:'Nuevo', preparando:'Preparando', listo:'Listo' };
+    const items = (p.items || []).map(it => `<div class="pedido-item"><span>${it.nombre} x${it.cantidad}</span><span>S/ ${(it.precio*it.cantidad).toFixed(2)}</span></div>`).join('');
+    let acciones = '';
+    if (p.estado === 'nuevo') acciones = `<button class="btn-sm btn-aceptar" onclick="cambiarEstadoPedido('${p.id}','preparando')">Aceptar</button><button class="btn-sm btn-rechazar" onclick="cambiarEstadoPedido('${p.id}','cancelado')">Rechazar</button>`;
+    if (p.estado === 'preparando') acciones = `<button class="btn-sm btn-listo" onclick="cambiarEstadoPedido('${p.id}','listo')">Marcar listo</button>`;
+    if (p.estado === 'listo') acciones = `<button class="btn-sm btn-aceptar" onclick="cambiarEstadoPedido('${p.id}','entregado')">Entregado ✓</button>`;
+    return `<div class="pedido-card">
+      <div class="pedido-header">
+        <div><div class="pedido-cliente">${p.clienteNombre || 'Cliente'}</div><div class="pedido-id">#${p.id.slice(-6)} · ${hora}</div></div>
+        <span class="pill ${pillMap[p.estado]}">${estadoLabel[p.estado]}</span>
+      </div>
+      <div class="pedido-items">${items}</div>
+      <div class="pedido-total">Total: S/ ${(p.total||0).toFixed(2)}</div>
+      ${p.nota ? `<div style="font-size:13px;color:var(--muted);margin-bottom:10px;">📝 ${p.nota}</div>` : ''}
+      <div class="pedido-acciones">${acciones}</div>
+    </div>`;
+  }).join('');
+}
+
+async function cambiarEstadoPedido(pedidoId, nuevoEstado) {
+  const updates = { estado: nuevoEstado };
+  if (nuevoEstado === 'entregado' || nuevoEstado === 'completado') {
+    updates.estado = 'completado';
+    const pedDoc = await db.collection('pedidos').doc(pedidoId).get();
+    const pedData = pedDoc.data();
+    const total = pedData.total || 0;
+    const fecha = fechaHoyLima();
+
+    // Registrar salida automática por cada item del pedido
+    const movRef = db.collection('bodegas').doc(bodegaId).collection('movimientos');
+    const prodRef = db.collection('bodegas').doc(bodegaId).collection('productos');
+    for (const item of (pedData.items || [])) {
+      try {
+        // Descontar stock del producto
+        const prodSnap = await prodRef.where('nombre', '==', item.nombre).limit(1).get();
+        if (!prodSnap.empty) {
+          const prodDoc = prodSnap.docs[0];
+          const stockActual = prodDoc.data().stock || 0;
+          const nuevoStock = Math.max(0, stockActual - item.cantidad);
+          await prodDoc.ref.update({ stock: nuevoStock });
+          await movRef.add({
+            productoId: prodDoc.id,
+            productoNombre: item.nombre,
+            tipo: 'salida',
+            cantidad: item.cantidad,
+            stockResultante: nuevoStock,
+            motivo: 'Pedido #' + pedidoId.slice(-6),
+            fecha: fecha,
+            creadoEn: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
+      } catch(e) { console.warn('No se pudo descontar stock de:', item.nombre, e); }
+    }
+
+    await db.collection('bodegas').doc(bodegaId).update({
+      ventaHoy: firebase.firestore.FieldValue.increment(total)
+    });
+  }
+  await db.collection('pedidos').doc(pedidoId).update(updates);
+
+  // Refrescar productos e inventario si se completó el pedido
+  if (nuevoEstado === 'entregado' || nuevoEstado === 'completado') {
+    cargarProductos();
+    cargarInventario();
+  }
+}
+
+// ============================
+// PRODUCTOS
+// ============================
+function cargarProductos() {
+  const grid = document.getElementById('productos-grid');
+  grid.innerHTML = '<div style="color:var(--muted);font-size:14px;grid-column:1/-1;padding:20px;">Conectando con Firestore...</div>';
+  db.collection('bodegas').doc(bodegaId).collection('productos')
+    .onSnapshot(snap => {
+      const prods = [];
+      snap.forEach(doc => prods.push({ id: doc.id, ...doc.data() }));
+      document.getElementById('stat-productos').textContent = prods.length;
+      renderProductos(prods);
+    }, err => {
+      console.error('Error al cargar productos:', err);
+      grid.innerHTML = '<div style="color:var(--rojo);font-size:14px;grid-column:1/-1;padding:20px;background:var(--rojo-claro);border-radius:10px;">' +
+        '⚠️ Error al cargar productos: <b>' + err.message + '</b><br><br>' +
+        'Posible causa: reglas de seguridad en Firestore.<br>' +
+        'Abre Firebase Console → Firestore → Reglas y permite lectura/escritura para usuarios autenticados.</div>';
+    });
+}
+
+function renderProductos(prods) {
+  const grid = document.getElementById('productos-grid');
+  if (!prods.length) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="emoji">🥫</div>Agrega tu primer producto</div>';
+    return;
+  }
+  grid.innerHTML = prods.map(p => {
+    const img = p.fotoUrl
+      ? `<img class="producto-foto" src="${p.fotoUrl}" alt="${p.nombre}"/>`
+      : `<div class="producto-foto-placeholder">🛒</div>`;
+    const sinStock = p.stock == 0 ? `<div class="badge-sin-stock">Sin stock</div>` : '';
+    const fotoUrlEsc = (p.fotoUrl || '').replace(/"/g, '&quot;');
+    const nombreEsc = (p.nombre || '').replace(/"/g, '&quot;');
+    return `<div class="producto-card">
+      ${sinStock}
+      ${img}
+      <div class="producto-info">
+        <div class="producto-nombre">${p.nombre}</div>
+        <div class="producto-precio">S/ ${parseFloat(p.precio).toFixed(2)}</div>
+        <div class="producto-stock">Stock: ${p.stock} unid.</div>
+        <div class="producto-acciones">
+          <button class="btn-sm btn-editar" style="flex:1;"
+            data-id="${p.id}"
+            data-nombre="${nombreEsc}"
+            data-precio="${p.precio}"
+            data-categoria="${p.categoria||'otros'}"
+            data-stock="${p.stock}"
+            data-foto="${fotoUrlEsc}"
+            onclick="editarProductoDesdeBtn(this)">Editar</button>
+          <button class="btn-sm btn-eliminar" onclick="eliminarProducto('${p.id}')">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function editarProductoDesdeBtn(btn) {
+  editarProducto(
+    btn.dataset.id,
+    btn.dataset.nombre,
+    parseFloat(btn.dataset.precio),
+    btn.dataset.categoria,
+    parseInt(btn.dataset.stock),
+    btn.dataset.foto
+  );
+}
+
+function abrirModalProducto() {
+  document.getElementById('modal-prod-titulo').textContent = 'Agregar producto';
+  document.getElementById('p-nombre').value = '';
+  document.getElementById('p-precio').value = '';
+  document.getElementById('p-stock').value = '';
+  document.getElementById('p-id').value = '';
+  document.getElementById('p-foto').value = '';
+  document.getElementById('p-foto-url-actual').value = '';
+  document.getElementById('foto-preview').style.display = 'none';
+  document.getElementById('modal-producto').classList.add('show');
+}
+
+function editarProducto(id, nombre, precio, categoria, stock, fotoUrl) {
+  document.getElementById('modal-prod-titulo').textContent = 'Editar producto';
+  document.getElementById('p-id').value = id;
+  document.getElementById('p-nombre').value = nombre;
+  document.getElementById('p-precio').value = precio;
+  document.getElementById('p-stock').value = stock;
+  document.getElementById('p-categoria').value = categoria || 'otros';
+  document.getElementById('p-foto').value = '';
+  // Guardar la URL actual en campo oculto para preservarla si no se cambia la foto
+  document.getElementById('p-foto-url-actual').value = fotoUrl || '';
+  const prev = document.getElementById('foto-preview');
+  if (fotoUrl) { prev.src = fotoUrl; prev.style.display = 'block'; } else { prev.style.display = 'none'; }
+  document.getElementById('modal-producto').classList.add('show');
+}
+
+// Comprime imagen con canvas y devuelve base64 (max ~200KB)
+function comprimirImagen(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX = 600;
+        let w = img.width, h = img.height;
+        if (w > h && w > MAX) { h = h * MAX / w; w = MAX; }
+        else if (h > MAX) { w = w * MAX / h; h = MAX; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        // Calidad 0.7 → aprox 50-150KB
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function previewFoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  comprimirImagen(file).then(base64 => {
+    const prev = document.getElementById('foto-preview');
+    prev.src = base64;
+    prev.style.display = 'block';
+    // Guardar base64 comprimida lista para Firestore
+    document.getElementById('p-foto-url-actual').value = base64;
+  });
+}
+
+async function guardarProducto() {
+  const nombre = document.getElementById('p-nombre').value.trim();
+  const precio = parseFloat(document.getElementById('p-precio').value);
+  const stock = parseInt(document.getElementById('p-stock').value);
+  const categoria = document.getElementById('p-categoria').value;
+  const id = document.getElementById('p-id').value;
+  if (!nombre || isNaN(precio) || isNaN(stock)) return alert('Completa nombre, precio y stock.');
+
+  const btnGuardar = document.querySelector('#modal-producto .btn-verde');
+  btnGuardar.disabled = true;
+  btnGuardar.textContent = 'Guardando...';
+
+  try {
+    const fotoUrl = document.getElementById('p-foto-url-actual').value || '';
+    const datos = { nombre, precio, stock, categoria, fotoUrl };
+    const colRef = db.collection('bodegas').doc(bodegaId).collection('productos');
+    const movRef = db.collection('bodegas').doc(bodegaId).collection('movimientos');
+
+    if (id) {
+      // Edición: calcular diferencia de stock
+      const docAntes = await colRef.doc(id).get();
+      const stockAntes = docAntes.exists ? (docAntes.data().stock || 0) : 0;
+      await colRef.doc(id).update(datos);
+      const diff = stock - stockAntes;
+      if (diff !== 0) {
+        await movRef.add({
+          productoId: id,
+          productoNombre: nombre,
+          tipo: diff > 0 ? 'entrada' : 'salida',
+          cantidad: Math.abs(diff),
+          stockResultante: stock,
+          motivo: diff > 0 ? 'Ajuste de stock (+)' : 'Ajuste de stock (-)',
+          fecha: fechaHoyLima(),
+          creadoEn: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    } else {
+      // Nuevo producto: registrar entrada inicial
+      const newDoc = await colRef.add(datos);
+      if (stock > 0) {
+        await movRef.add({
+          productoId: newDoc.id,
+          productoNombre: nombre,
+          tipo: 'entrada',
+          cantidad: stock,
+          stockResultante: stock,
+          motivo: 'Stock inicial',
+          fecha: fechaHoyLima(),
+          creadoEn: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    }
+    cerrarModal('modal-producto');
+  } catch (err) {
+    console.error('Error al guardar producto:', err);
+    alert('❌ Error al guardar: ' + err.message + '\n\nRevisa la consola (F12) para más detalles.');
+  } finally {
+    btnGuardar.disabled = false;
+    btnGuardar.textContent = 'Guardar';
+  }
+}
+
+async function eliminarProducto(id) {
+  if (!confirm('¿Eliminar este producto?')) return;
+  await db.collection('bodegas').doc(bodegaId).collection('productos').doc(id).delete();
+}
+
+// ============================
+// HISTORIAL
+// ============================
+function resetearFiltroHistorial() {
+  document.getElementById('filtro-fecha-historial').value = fechaHoyLima();
+  cargarHistorial();
+}
+
+async function cargarHistorial() {
+  const fechaInput = document.getElementById('filtro-fecha-historial');
+  const fecha = fechaInput.value || fechaHoyLima();
+  fechaInput.value = fecha;
+
+  const cont = document.getElementById('lista-historial');
+  const resumen = document.getElementById('historial-resumen');
+  cont.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:20px;">Cargando...</div>';
+
+  try {
+    const snap = await db.collection('pedidos')
+      .where('bodegaId', '==', bodegaId)
+      .where('estado', '==', 'completado')
+      .limit(200).get();
+
+    // Filtrar por fecha en el cliente (misma estrategia que pedidos)
+    let docs = snap.docs.filter(doc => doc.data().fecha === fecha);
+
+    if (!docs.length) {
+      const fechaLabel = new Date(fecha + 'T12:00:00').toLocaleDateString('es-PE', { day:'2-digit', month:'long', year:'numeric' });
+      cont.innerHTML = `<div class="empty-state"><div class="emoji">📊</div>Sin ventas el ${fechaLabel}</div>`;
+      resumen.textContent = '';
+      return;
+    }
+
+    // Ordenar descendente por creadoEn
+    docs.sort((a, b) => {
+      const ta = a.data().creadoEn?.toDate ? a.data().creadoEn.toDate() : new Date(a.data().creadoEn || 0);
+      const tb = b.data().creadoEn?.toDate ? b.data().creadoEn.toDate() : new Date(b.data().creadoEn || 0);
+      return tb - ta;
+    });
+
+    const totalDia = docs.reduce((s, doc) => s + (doc.data().total || 0), 0);
+    resumen.textContent = `${docs.length} venta${docs.length !== 1 ? 's' : ''} · Total: S/ ${totalDia.toFixed(2)}`;
+
+    cont.innerHTML = docs.map(doc => {
+      const d = doc.data();
+      const hora = d.creadoEn
+        ? new Date(d.creadoEn.toDate ? d.creadoEn.toDate() : d.creadoEn).toLocaleTimeString('es-PE', { hour:'2-digit', minute:'2-digit' })
+        : '';
+      return `<div class="historial-item">
+        <div class="historial-info">
+          <div class="fecha">${hora}</div>
+          <div class="cliente">${d.clienteNombre || 'Cliente'} · ${(d.items || []).length} producto${(d.items||[]).length !== 1 ? 's' : ''}</div>
+        </div>
+        <div class="historial-monto">S/ ${(d.total || 0).toFixed(2)}</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    cont.innerHTML = `<div style="color:var(--rojo);padding:16px;background:var(--rojo-claro);border-radius:10px;">⚠️ Error: ${e.message}</div>`;
+  }
+}
+
+// ============================
+// INVENTARIO AUTOMÁTICO
+// ============================
+let todosMovimientos = [];
+
+function cargarInventario() {
+  const lista = document.getElementById('lista-inventario');
+  lista.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:20px;">Cargando movimientos...</div>';
+  // Sin orderBy para evitar índice compuesto; ordenamos en el cliente
+  db.collection('bodegas').doc(bodegaId).collection('movimientos')
+    .limit(100)
+    .onSnapshot(snap => {
+      todosMovimientos = [];
+      snap.forEach(doc => todosMovimientos.push({ id: doc.id, ...doc.data() }));
+      // Ordenar descendente por creadoEn en el cliente
+      todosMovimientos.sort((a,b) => {
+        const ta = a.creadoEn?.toDate ? a.creadoEn.toDate() : new Date(a.creadoEn||0);
+        const tb = b.creadoEn?.toDate ? b.creadoEn.toDate() : new Date(b.creadoEn||0);
+        return tb - ta;
+      });
+      actualizarFiltroInventario();
+      renderInventario(todosMovimientos);
+    }, err => {
+      lista.innerHTML = '<div style="color:var(--rojo);font-size:14px;padding:20px;background:var(--rojo-claro);border-radius:10px;">⚠️ Error al cargar inventario: <b>' + err.message + '</b><br><br>Si el error dice <b>"requires an index"</b>, ve a Firebase Console → Firestore → <b>Índices</b> → crea un índice en la colección <b>movimientos</b> con el campo <b>creadoEn Descendente</b>.<br><br>El enlace para crearlo aparece en la consola del navegador (F12).</div>';
+    });
+}
+
+function actualizarFiltroInventario() {
+  const sel = document.getElementById('filtro-inventario');
+  const actual = sel.value;
+  const nombres = [...new Set(todosMovimientos.map(m => m.productoNombre).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">Todos los productos</option>' +
+    nombres.map(n => `<option value="${n}" ${actual===n?'selected':''}>${n}</option>`).join('');
+}
+
+function filtrarInventario() {
+  const filtro = document.getElementById('filtro-inventario').value;
+  const filtrados = filtro ? todosMovimientos.filter(m => m.productoNombre === filtro) : todosMovimientos;
+  renderInventario(filtrados);
+  actualizarBotonLimpiar();
+}
+
+function renderInventario(movs) {
+  const lista = document.getElementById('lista-inventario');
+  if (!movs.length) {
+    lista.innerHTML = '<div class="empty-state"><div class="emoji">📋</div>Sin movimientos aún.<br><small style="font-size:13px;">Se registran automáticamente al agregar productos o completar pedidos.</small></div>';
+    return;
+  }
+  lista.innerHTML = movs.map(m => {
+    const esEntrada = m.tipo === 'entrada';
+    const icono = esEntrada ? '📥' : '📤';
+    const fecha = m.creadoEn ? new Date(m.creadoEn.toDate ? m.creadoEn.toDate() : m.creadoEn).toLocaleString('es-PE', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : (m.fecha || '');
+    const stock = m.stockResultante ?? null;
+
+    // Clasificar nivel de stock para color del badge
+    let stockClase = 'stock-ok';
+    let stockBajo = false;
+    if (stock !== null) {
+      if (stock === 0) { stockClase = 'stock-cero'; stockBajo = true; }
+      else if (stock <= 3) { stockClase = 'stock-bajo'; stockBajo = true; }
+    }
+
+    // Punto pulsante solo en salidas con stock bajo
+    const dotPulso = (!esEntrada && stockBajo) ? 'stock-bajo' : '';
+
+    return `<div class="inv-row ${m.tipo}">
+      <div class="inv-tipo ${m.tipo} ${dotPulso}">
+        ${icono}
+        <span class="inv-dot"></span>
+      </div>
+      <div class="inv-info">
+        <div class="prod">${m.productoNombre || '—'}</div>
+        <div class="detalle">${m.motivo || ''} · ${fecha}</div>
+      </div>
+      <div class="inv-cant ${m.tipo}">${esEntrada ? '+' : '-'}${m.cantidad}</div>
+      <div class="inv-stock ${stockClase}">Stock: ${stock !== null ? stock : '—'}</div>
+    </div>`;
+  }).join('');
+}
+
+// ============================
+// LIMPIAR INVENTARIO
+// ============================
+async function limpiarInventario() {
+  const filtro = document.getElementById('filtro-inventario').value;
+  const msg = filtro
+    ? '¿Eliminar todos los movimientos de "' + filtro + '"? Esta acción no se puede deshacer.'
+    : '¿Eliminar TODOS los movimientos de inventario? Esta acción no se puede deshacer.';
+  if (!confirm(msg)) return;
+  const lista = document.getElementById('lista-inventario');
+  lista.innerHTML = '<div style="color:var(--muted);padding:16px;">Eliminando movimientos...</div>';
+  try {
+    let query = db.collection('bodegas').doc(bodegaId).collection('movimientos');
+    // Si hay filtro activo, borrar solo los de ese producto
+    let snap;
+    if (filtro) {
+      snap = await query.where('productoNombre', '==', filtro).get();
+    } else {
+      snap = await query.get();
+    }
+    const batch = db.batch();
+    snap.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+    // Actualizar lista local
+    if (filtro) {
+      todosMovimientos = todosMovimientos.filter(m => m.productoNombre !== filtro);
+    } else {
+      todosMovimientos = [];
+    }
+    actualizarFiltroInventario();
+    renderInventario(filtro ? todosMovimientos.filter(m => m.productoNombre === filtro) : todosMovimientos);
+  } catch(e) {
+    alert('Error al limpiar: ' + e.message);
+    console.error(e);
+  }
+}
+
+// Actualiza el texto del botón limpiar según el filtro activo
+function actualizarBotonLimpiar() {
+  const filtro = document.getElementById('filtro-inventario').value;
+  const btn = document.getElementById('btn-limpiar-inv');
+  if (btn) btn.textContent = filtro ? '🗑 Limpiar "' + filtro + '"' : '🗑 Limpiar todo';
+}
+
+
+// ============================
+// MENSAJES (BODEGA)
+// ============================
+let mensajesUnsubscribe = null;
+
+function abrirMensajesBodega() {
+  document.getElementById('modal-mensajes').classList.add('show');
+  // Marcar como leídos
+  marcarMensajesLeidos();
+  escucharMensajesBodega();
+}
+
+function escucharMensajesBodega() {
+  if (mensajesUnsubscribe) mensajesUnsubscribe();
+  const lista = document.getElementById('mensajes-bodega-lista');
+  lista.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">Cargando...</div>';
+
+  mensajesUnsubscribe = db.collection('mensajes')
+    .onSnapshot(snap => {
+      const docs = snap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(m => m.bodegaId === bodegaId)
+        .sort((a, b) => {
+          const ta = a.creadoEn?.toMillis ? a.creadoEn.toMillis() : 0;
+          const tb = b.creadoEn?.toMillis ? b.creadoEn.toMillis() : 0;
+          return ta - tb;
+        });
+
+      if (!docs.length) {
+        lista.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">Sin mensajes aún.</div>';
+        return;
+      }
+
+      lista.innerHTML = docs.map(m => {
+        const esAdmin  = m.autor === 'admin';
+        const hora = m.creadoEn?.toDate
+          ? m.creadoEn.toDate().toLocaleString('es-PE', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+          : '…';
+        return `<div style="display:flex;flex-direction:column;align-items:${esAdmin ? 'flex-start' : 'flex-end'};">
+          <div class="msg-burbuja ${esAdmin ? 'msg-admin' : 'msg-bodega'}">
+            ${m.texto}
+            <div class="msg-meta">${esAdmin ? '👤 Admin' : 'Tú'} · ${hora}</div>
+          </div>
+        </div>`;
+      }).join('');
+      lista.scrollTop = lista.scrollHeight;
+    }, err => {
+      lista.innerHTML = '<div style="color:var(--rojo);font-size:13px;padding:12px;">Error: ' + err.message + '</div>';
+    });
+}
+
+async function enviarMensajeBodega() {
+  const texto = document.getElementById('msg-bodega-texto').value.trim();
+  if (!texto || !bodegaId) return;
+  const btn = document.querySelector('#modal-mensajes .btn-verde');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    await db.collection('mensajes').add({
+      bodegaId,
+      texto,
+      autor: 'bodega',
+      leido: false,
+      creadoEn: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('msg-bodega-texto').value = '';
+  } catch(e) {
+    alert('Error al enviar: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Enviar';
+  }
+}
+
+// Badge de mensajes no leídos del admin
+function escucharBadgeMensajes() {
+  db.collection('mensajes')
+    .where('bodegaId', '==', bodegaId)
+    .where('autor', '==', 'admin')
+    .onSnapshot(snap => {
+      const noLeidos = snap.docs
+        .map(d => d.data())
+        .filter(m => !m.leido)
+        .length;
+      const badge = document.getElementById('badge-msg-nuevo');
+      if (noLeidos > 0) {
+        badge.textContent = noLeidos > 9 ? '9+' : noLeidos;
+        badge.classList.add('visible');
+      } else {
+        badge.classList.remove('visible');
+      }
+    });
+}
+
+async function marcarMensajesLeidos() {
+  const snap = await db.collection('mensajes')
+    .where('bodegaId', '==', bodegaId)
+    .get();
+  const batch = db.batch();
+  snap.docs.forEach(doc => {
+    if (doc.data().autor === 'admin' && !doc.data().leido) {
+      batch.update(doc.ref, { leido: true });
+    }
+  });
+  await batch.commit().catch(() => {});
+}
+
+// Cerrar modal detiene listener
+document.getElementById('modal-mensajes').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-mensajes')) {
+    if (mensajesUnsubscribe) { mensajesUnsubscribe(); mensajesUnsubscribe = null; }
+  }
+});
+
+
+// ============================
+// FCM — NOTIFICACIONES PUSH
+// ============================
+const VAPID_KEY = 'BIShlPdLgbOJtmUFCrEvPtd_uZM1le-eqgkmGt3KalMwEby8Z2OdHIPSEb9qBB-tjlKdQujmlUMICZwJlkqj2EM';
+let messaging = null;
+
+async function iniciarFCM() {
+  // Solo en HTTPS (GitHub Pages) o localhost
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+
+  try {
+    messaging = firebase.messaging();
+  } catch(e) {
+    console.warn('FCM no disponible:', e.message);
+    return;
+  }
+
+  const permiso = Notification.permission;
+
+  // Si ya tiene permiso → obtener token y guardarlo
+  if (permiso === 'granted') {
+    await obtenerYGuardarToken();
+    return;
+  }
+
+  // Si aún no decidió → mostrar banner
+  if (permiso === 'default') {
+    setTimeout(() => {
+      document.getElementById('banner-notif').classList.add('show');
+    }, 2000);
+  }
+}
+
+async function activarNotificaciones() {
+  cerrarBanner();
+  try {
+    const permiso = await Notification.requestPermission();
+    if (permiso === 'granted') {
+      await obtenerYGuardarToken();
+      mostrarToast('🔔 Notificaciones activadas correctamente');
+    } else {
+      mostrarToast('⚠️ Notificaciones denegadas. Puedes activarlas desde la configuración del navegador.');
+    }
+  } catch(e) {
+    console.error('Error activando notificaciones:', e);
+  }
+}
+
+function cerrarBanner() {
+  document.getElementById('banner-notif').classList.remove('show');
+}
+
+async function obtenerYGuardarToken() {
+  if (!messaging || !bodegaId) return;
+  try {
+    // ✅ FIX: ruta del SW relativa a la página actual, no hardcodeada
+    // Así funciona sin importar cómo se llame el repo en GitHub Pages
+    const swUrl = new URL('firebase-messaging-sw.js', location.href).href;
+    const swReg = await navigator.serviceWorker.register(swUrl);
+    await navigator.serviceWorker.ready; // esperar que esté activo
+
+    const token = await messaging.getToken({
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration: swReg
+    });
+
+    if (token) {
+      // ✅ FIX: usar los últimos 30 chars como clave → menos colisiones entre tokens distintos
+      const tokenKey = token.slice(-30);
+      await db.collection('bodegas').doc(bodegaId).update({
+        [`fcmTokens.${tokenKey}`]: token
+      });
+      console.log('✅ Token FCM guardado:', tokenKey);
+
+      // ✅ FIX: limpiar tokens viejos/inválidos (los que no coinciden con el actual)
+      try {
+        const bodegaDoc = await db.collection('bodegas').doc(bodegaId).get();
+        const tokens = bodegaDoc.data()?.fcmTokens || {};
+        const updates = {};
+        for (const [k, v] of Object.entries(tokens)) {
+          if (k !== tokenKey && !v.endsWith(k)) {
+            updates[`fcmTokens.${k}`] = firebase.firestore.FieldValue.delete();
+          }
+        }
+        if (Object.keys(updates).length) {
+          await db.collection('bodegas').doc(bodegaId).update(updates);
+          console.log('🧹 Tokens inválidos eliminados:', Object.keys(updates).length);
+        }
+      } catch(e) {
+        console.warn('No se pudo limpiar tokens viejos:', e.message);
+      }
+    }
+  } catch(e) {
+    console.warn('Error obteniendo token FCM:', e.message);
+  }
+}
+
+// Notificación cuando la app está EN PRIMER PLANO (abierta)
+function escucharMensajesFCM() {
+  if (!messaging) return;
+  messaging.onMessage(payload => {
+    const { title, body } = payload.notification || {};
+    mostrarToast('🛒 ' + (title || 'Nuevo pedido') + (body ? ': ' + body : ''));
+    // La voz ya se dispara desde escucharPedidos() al detectar el pedido nuevo en Firestore
+  });
+}
+
+function mostrarToast(msg) {
+  let toast = document.getElementById('fcm-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'fcm-toast';
+    toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c1c1c;color:white;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;max-width:320px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.25);transition:opacity 0.3s;';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 4000);
+}
+
+// UTILS
+function mostrarTab(tab, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  btn.classList.add('active');
+  if (tab === 'historial') {
+    document.getElementById('filtro-fecha-historial').value = fechaHoyLima();
+    cargarHistorial();
+  }
+  if (tab === 'inventario') cargarInventario();
+}
+function cerrarModal(id) { document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if(e.target===el) el.classList.remove('show'); });
+});
+</script>
+</body>
+</html>
